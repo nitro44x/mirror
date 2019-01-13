@@ -13,7 +13,7 @@
 using managed_vector = simt::containers::vector<double, simt::managed_allocator<double>>;
 
 template <typename T>
-__global__ void printArray(T* data, size_t size) {
+__global__ void printArray(T const* data, size_t size) {
 	if (threadIdx.x == 0 && blockIdx.x == 0) {
 		printf("gpu v = ");
 		for (int i = 0; i < size; ++i)
@@ -22,32 +22,32 @@ __global__ void printArray(T* data, size_t size) {
 	}
 }
 
-HOSTDEVICE void printVector(managed_vector * v) {
+HOSTDEVICE void printVector(managed_vector const & v) {
 	printf("gpu v = ");
-	for (auto const& d : *v)
+	for (auto const& d : v)
 		printf("%lf ", d);
 	printf("\n");
 }
 
-__global__ void call_printVector(managed_vector * v) {
+__global__ void call_printVector(managed_vector const& v) {
 	if (threadIdx.x == 0 && blockIdx.x == 0) {
 		printVector(v);
 	}
 }
 
-__global__ void call_printVector_ref(managed_vector & v) {
+__global__ void call_printVector_ref(managed_vector const& v) {
 	if (threadIdx.x == 0 && blockIdx.x == 0) {
-		printVector(&v);
+		printVector(v);
 	}
 }
 
 
-HOSTDEVICE void setTo(managed_vector * v, managed_vector::value_type value) {
-	for (auto & d : *v)
+HOSTDEVICE void setTo(managed_vector & v, managed_vector::value_type value) {
+	for (auto & d : v)
 		d = value;
 }
 
-__global__ void call_setTo(managed_vector * v, managed_vector::value_type value) {
+__global__ void call_setTo(managed_vector & v, managed_vector::value_type value) {
 	if (threadIdx.x == 0 && blockIdx.x == 0) {
 		setTo(v, value);
 	}
@@ -89,8 +89,8 @@ void test3() {
 	for (auto const& d : *simt_v_ptr)
 		std::cout << d << " ";
 	std::cout << std::endl;
-	printVector(simt_v_ptr);
-	call_printVector<<<1,1>>>(simt_v_ptr);
+	printVector(*simt_v_ptr);
+	call_printVector<<<1,1>>>(*simt_v_ptr);
 	cudaDeviceSynchronize();
 	delete simt_v_ptr;
 	std::cout << std::endl;
@@ -104,7 +104,7 @@ void test3a() {
 	for (auto const& d : *simt_v_ptr)
 		std::cout << d << " ";
 	std::cout << std::endl;
-	printVector(simt_v_ptr);
+	printVector(*simt_v_ptr);
 	call_printVector_ref<<<1,1>>>(*simt_v_ptr);
 	cudaDeviceSynchronize();
 	delete simt_v_ptr;
@@ -115,12 +115,12 @@ void test4() {
 	std::cout << "modify simt::containers::vector [object] on cpu" << std::endl;
 	auto simt_v_ptr = new managed_vector;
 	simt_v_ptr->resize(10);
-	setTo(simt_v_ptr, 123);
+	setTo(*simt_v_ptr, 123);
 	std::cout << "cpu v = ";
 	for (auto const& d : *simt_v_ptr)
 		std::cout << d << " ";
 	std::cout << std::endl;
-	call_printVector<<<1,1>>>(simt_v_ptr);
+	call_printVector<<<1,1>>>(*simt_v_ptr);
 	cudaDeviceSynchronize();
 	delete simt_v_ptr;
 	std::cout << std::endl;
@@ -130,13 +130,28 @@ void test5() {
 	std::cout << "modify simt::containers::vector [object] on gpu" << std::endl;
 	auto simt_v_ptr = new managed_vector;
 	simt_v_ptr->resize(10);
-	call_setTo<<<1,1>>>(simt_v_ptr, 123);
+	call_setTo<<<1,1>>>(*simt_v_ptr, 123);
 	cudaDeviceSynchronize();
 	std::cout << "cpu v = ";
 	for (auto const& d : *simt_v_ptr)
 		std::cout << d << " ";
 	std::cout << std::endl;
-	call_printVector<<<1,1>>>(simt_v_ptr);
+	call_printVector<<<1,1>>>(*simt_v_ptr);
+	cudaDeviceSynchronize();
+	delete simt_v_ptr;
+	std::cout << std::endl;
+}
+
+void test6() {
+	std::cout << "modify simt::containers::vector [object] on gpu" << std::endl;
+	auto simt_v_ptr = new managed_vector;
+	for (auto i = 0; i < 4; ++i)
+		simt_v_ptr->push_back(10+i*i);
+	std::cout << "cpu v = ";
+	for (auto const& d : *simt_v_ptr)
+		std::cout << d << " ";
+	std::cout << std::endl;
+	call_printVector<<<1,1>>>(*simt_v_ptr);
 	cudaDeviceSynchronize();
 	delete simt_v_ptr;
 	std::cout << std::endl;
@@ -152,6 +167,7 @@ int main() {
 	// Modify vector tests
 	test4();
 	test5();
+	test6();
 
     return EXIT_SUCCESS;
 }

@@ -93,9 +93,12 @@ namespace simt {
 			HOSTDEVICE iterator begin() { return iterator(m_data, 0); }
 			HOSTDEVICE iterator end() { return iterator(m_data, m_size); }
 
+			HOSTDEVICE const_iterator begin() const { return iterator(m_data, 0); }
+			HOSTDEVICE const_iterator end() const { return iterator(m_data, m_size); }
+
 		private:
-			void grow() {
-				auto const newCapacity = capacity() * 2;
+			HOST void grow() {
+				auto const newCapacity = capacity() == 0 ? 1 : capacity() * 2;
 				pointer tmp = m_alloc.allocate(newCapacity);
 				memcpy(tmp, m_data, sizeof(T) * size());
 				m_data = tmp;
