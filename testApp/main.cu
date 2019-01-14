@@ -10,8 +10,6 @@
 #include "simt_vector.hpp"
 #include "simt_allocator.hpp"
 
-using managed_vector = simt::containers::vector<double, simt::managed_allocator<double>>;
-
 template <typename T>
 __global__ void printArray(T const* data, size_t size) {
 	if (threadIdx.x == 0 && blockIdx.x == 0) {
@@ -22,32 +20,32 @@ __global__ void printArray(T const* data, size_t size) {
 	}
 }
 
-HOSTDEVICE void printVector(managed_vector const & v) {
+HOSTDEVICE void printVector(simt::containers::vector<double> const & v) {
 	printf("gpu v = ");
 	for (auto const& d : v)
 		printf("%lf ", d);
 	printf("\n");
 }
 
-__global__ void call_printVector(managed_vector const& v) {
+__global__ void call_printVector(simt::containers::vector<double> const& v) {
 	if (threadIdx.x == 0 && blockIdx.x == 0) {
 		printVector(v);
 	}
 }
 
-__global__ void call_printVector_ref(managed_vector const& v) {
+__global__ void call_printVector_ref(simt::containers::vector<double> const& v) {
 	if (threadIdx.x == 0 && blockIdx.x == 0) {
 		printVector(v);
 	}
 }
 
 
-HOSTDEVICE void setTo(managed_vector & v, managed_vector::value_type value) {
+HOSTDEVICE void setTo(simt::containers::vector<double> & v, simt::containers::vector<double>::value_type value) {
 	for (auto & d : v)
 		d = value;
 }
 
-__global__ void call_setTo(managed_vector & v, managed_vector::value_type value) {
+__global__ void call_setTo(simt::containers::vector<double> & v, simt::containers::vector<double>::value_type value) {
 	if (threadIdx.x == 0 && blockIdx.x == 0) {
 		setTo(v, value);
 	}
@@ -55,7 +53,7 @@ __global__ void call_setTo(managed_vector & v, managed_vector::value_type value)
 
 void test1() {
 	std::cout << "std::vector" << std::endl;
-	std::vector<double, simt::managed_allocator<double>> v(10);
+	std::vector<double, simt::memory::managed_allocator<double>> v(10);
 	std::iota(begin(v), end(v), -4);
 	std::cout << "cpu v = ";
 	for (auto const& d : v)
@@ -69,7 +67,7 @@ void test1() {
 
 void test2() {
 	std::cout << "simt::containers::vector [raw ptr]" << std::endl;
-	simt::containers::vector<double, simt::managed_allocator<double>> simt_v(10, 3.0);
+	simt::containers::vector<double> simt_v(10, 3.0);
 	std::iota(simt_v.begin(), simt_v.end(), -3.0);
 	simt_v.push_back(4321);
 	std::cout << "cpu v = ";
@@ -83,7 +81,7 @@ void test2() {
 
 void test3() {
 	std::cout << "simt::containers::vector [object]" << std::endl;
-	auto simt_v_ptr = new managed_vector(10);
+	auto simt_v_ptr = new simt::containers::vector<double>(10);
 	std::iota(simt_v_ptr->begin(), simt_v_ptr->end(), -4);
 	std::cout << "cpu v = ";
 	for (auto const& d : *simt_v_ptr)
@@ -98,7 +96,7 @@ void test3() {
 
 void test3a() {
 	std::cout << "simt::containers::vector [object] printByRef" << std::endl;
-	auto simt_v_ptr = new managed_vector(10);
+	auto simt_v_ptr = new simt::containers::vector<double>(10);
 	std::iota(simt_v_ptr->begin(), simt_v_ptr->end(), -4);
 	std::cout << "cpu v = ";
 	for (auto const& d : *simt_v_ptr)
@@ -113,7 +111,7 @@ void test3a() {
 
 void test4() {
 	std::cout << "modify simt::containers::vector [object] on cpu" << std::endl;
-	auto simt_v_ptr = new managed_vector;
+	auto simt_v_ptr = new simt::containers::vector<double>;
 	simt_v_ptr->resize(10);
 	setTo(*simt_v_ptr, 123);
 	std::cout << "cpu v = ";
@@ -128,7 +126,7 @@ void test4() {
 
 void test5() {
 	std::cout << "modify simt::containers::vector [object] on gpu" << std::endl;
-	auto simt_v_ptr = new managed_vector;
+	auto simt_v_ptr = new simt::containers::vector<double>;
 	simt_v_ptr->resize(10);
 	call_setTo<<<1,1>>>(*simt_v_ptr, 123);
 	cudaDeviceSynchronize();
@@ -144,7 +142,7 @@ void test5() {
 
 void test6() {
 	std::cout << "modify simt::containers::vector [object] on gpu" << std::endl;
-	auto simt_v_ptr = new managed_vector;
+	auto simt_v_ptr = new simt::containers::vector<double>;
 	for (auto i = 0; i < 4; ++i)
 		simt_v_ptr->push_back(10+i*i);
 	std::cout << "cpu v = ";

@@ -34,8 +34,8 @@ namespace simt {
 			pointer p = nullptr;
 		};
 
-		template <typename T, class Alloc = simt::managed_allocator<T>>
-		class vector : public Managed {
+		template <typename T, class Alloc = simt::memory::managed_allocator<T>>
+		class vector : public simt::memory::Managed {
 		public:
 
 			using value_type = T;
