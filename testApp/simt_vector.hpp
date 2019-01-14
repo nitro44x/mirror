@@ -68,6 +68,7 @@ namespace simt {
 				if (nElements > capacity()) {
 					pointer tmp = m_alloc.allocate(nElements);
 					memcpy(tmp, m_data, sizeof(T) * size());
+					m_alloc.deallocate(m_data, capacity());
 					m_data = tmp;
 					m_capacity = nElements;
 				}
@@ -77,7 +78,7 @@ namespace simt {
 
 			HOST void push_back(value_type value) {
 				auto const currentSize = size();
-				if (currentSize <= capacity())
+				if (currentSize == capacity())
 					grow();
 				this->operator[](currentSize) = value;
 				++m_size;
@@ -103,6 +104,7 @@ namespace simt {
 				auto const newCapacity = capacity() == 0 ? 1 : capacity() * 2;
 				pointer tmp = m_alloc.allocate(newCapacity);
 				memcpy(tmp, m_data, sizeof(T) * size());
+				m_alloc.deallocate(m_data, capacity());
 				m_data = tmp;
 				m_capacity = newCapacity;
 			}
