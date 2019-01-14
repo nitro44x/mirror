@@ -178,6 +178,7 @@ class B : public A {
 public:
 	HOSTDEVICE B() { ; }
 	HOSTDEVICE B(int j) : j(j) {}
+	HOSTDEVICE B(encodedObj e) : B() { decode(e); }
 	HOSTDEVICE ~B() override { ; }
 
 	HOSTDEVICE void sayHi() const override {
@@ -199,6 +200,7 @@ class C : public A {
 public:
 	HOSTDEVICE C() { ; }
 	HOSTDEVICE C(int j) : d(j) {}
+	HOSTDEVICE C(encodedObj e) : C() { decode(e); }
 	HOSTDEVICE ~C() override { ; }
 
 	HOSTDEVICE void sayHi() const override {
@@ -219,17 +221,16 @@ public:
 __global__
 void allocateDeviceObjs(simt::containers::vector<A*> & device_objs, simt::containers::vector<encodedObj> const& encoded_objs) {
 	if (threadIdx.x == 0 && blockIdx.x == 0) {
+		printf("device_objs size = %d\n", (int)device_objs.size());
 		for (size_t i = 0; i < device_objs.size(); ++i) {
 			switch (encoded_objs[i].type) {
 			case ABC_t::B:
 				printf("Allocating B object!\n");
-				device_objs[i] = new B();
-				device_objs[i]->decode(encoded_objs[i]);
+				device_objs[i] = new B(encoded_objs[i]);
 				break;
 			case ABC_t::C:
 				printf("Allocating C object!\n");
-				device_objs[i] = new C();
-				device_objs[i]->decode(encoded_objs[i]);
+				device_objs[i] = new C(encoded_objs[i]);
 				break;
 			case ABC_t::A:
 			case ABC_t::Unk:
@@ -261,7 +262,7 @@ void deallocateDeviceObjs(simt::containers::vector<A*> & device_objs) {
 }
 
 void test7() {
-	const auto N = 3;
+	const auto N = 30;
 	std::vector<A*> host_objs;
 	auto encoded_objs = new simt::containers::vector<encodedObj>();
 	for (auto i = 0; i < N; ++i) {
