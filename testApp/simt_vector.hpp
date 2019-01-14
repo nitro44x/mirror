@@ -97,6 +97,8 @@ namespace simt {
 			HOSTDEVICE const_iterator end() const { return iterator(m_data, m_size); }
 
 		private:
+
+			// \todo Use geometric growth strat: see std::vector::_Calculate_growth()
 			HOST void grow() {
 				auto const newCapacity = capacity() == 0 ? 1 : capacity() * 2;
 				pointer tmp = m_alloc.allocate(newCapacity);
