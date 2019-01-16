@@ -31,8 +31,6 @@ namespace simt {
 			template <class U> constexpr managed_allocator(const managed_allocator<U>&) noexcept {}
 
 			HOST T* allocate(std::size_t n) {
-				//static_assert(!std::is_trivially_copyable<T>::value, "Managed Allocator can only be used for trivially copiable types");
-
 				void* out = nullptr;
 				check(cudaMallocManaged(&out, n * sizeof(T)));
 				memset(out, 0, n * sizeof(T));

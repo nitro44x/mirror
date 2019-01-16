@@ -3,6 +3,8 @@
 #include "simt_macros.hpp"
 #include "simt_allocator.hpp"
 
+#include <algorithm>
+
 namespace simt {
 	namespace containers {
 
@@ -77,10 +79,10 @@ namespace simt {
 			}
 
 			HOST void push_back(value_type value) {
-				auto const currentSize = size();
-				if (currentSize == capacity())
-					grow();
-				this->operator[](currentSize) = value;
+				auto const requiredCapcity = size() + 1;
+				if (requiredCapcity > capacity())
+					grow(calculate_growth(requiredCapcity));
+				this->operator[](size()) = value;
 				++m_size;
 			}
 
@@ -99,14 +101,19 @@ namespace simt {
 
 		private:
 
-			// \todo Use geometric growth strat: see std::vector::_Calculate_growth()
-			HOST void grow() {
-				auto const newCapacity = capacity() == 0 ? 1 : capacity() * 2;
+			HOST void grow(size_type newCapacity) {
 				pointer tmp = m_alloc.allocate(newCapacity);
-				memcpy(tmp, m_data, sizeof(T) * size());
+				memcpy(tmp, m_data, sizeof(T) * std::min(size(), newCapacity));
 				m_alloc.deallocate(m_data, capacity());
 				m_data = tmp;
 				m_capacity = newCapacity;
+			}
+
+			HOST size_type calculate_growth(size_type requiredCapcity) {
+				auto const newCapacity = capacity() + capacity() / 2;
+				if (newCapacity < requiredCapcity)
+					return requiredCapcity;
+				return newCapacity;
 			}
 
 			allocator_type m_alloc{};
