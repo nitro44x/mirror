@@ -11,6 +11,10 @@
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 
+#include <iostream>
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
+
 template <typename T>
 __global__ void printArray(T const* data, size_t size) {
 	if (threadIdx.x == 0 && blockIdx.x == 0) {
@@ -62,8 +66,8 @@ void test1() {
 		std::cout << d << " ";
 	std::cout << std::endl;
 
-	printArray << <1, 1 >> > (v.data(), v.size());
-	cudaDeviceSynchronize();
+	printArray<<<1,1>>>(v.data(), v.size());
+	simt_sync
 	std::cout << std::endl;
 }
 
@@ -76,8 +80,8 @@ void test2() {
 	for (auto const& d : simt_v)
 		std::cout << d << " ";
 	std::cout << std::endl;
-	printArray << <1, 1 >> > (simt_v.data(), simt_v.size());
-	cudaDeviceSynchronize();
+	printArray<<<1,1>>>(simt_v.data(), simt_v.size());
+	simt_sync
 	std::cout << std::endl;
 }
 
@@ -90,8 +94,8 @@ void test3() {
 		std::cout << d << " ";
 	std::cout << std::endl;
 	printVector(*simt_v_ptr);
-	call_printVector << <1, 1 >> > (*simt_v_ptr);
-	cudaDeviceSynchronize();
+	call_printVector<<<1,1>>>(*simt_v_ptr);
+	simt_sync
 	delete simt_v_ptr;
 	std::cout << std::endl;
 }
@@ -105,8 +109,8 @@ void test3a() {
 		std::cout << d << " ";
 	std::cout << std::endl;
 	printVector(*simt_v_ptr);
-	call_printVector_ref << <1, 1 >> > (*simt_v_ptr);
-	cudaDeviceSynchronize();
+	call_printVector_ref<<<1,1>>>(*simt_v_ptr);
+	simt_sync
 	delete simt_v_ptr;
 	std::cout << std::endl;
 }
@@ -120,9 +124,10 @@ void test4() {
 	for (auto const& d : *simt_v_ptr)
 		std::cout << d << " ";
 	std::cout << std::endl;
-	call_printVector << <1, 1 >> > (*simt_v_ptr);
-	cudaDeviceSynchronize();
+	call_printVector<<<1,1>>>(*simt_v_ptr);
+	simt_sync
 	delete simt_v_ptr;
+	simt_sync
 	std::cout << std::endl;
 }
 
@@ -130,14 +135,14 @@ void test5() {
 	std::cout << "modify simt::containers::vector [object] on gpu" << std::endl;
 	auto simt_v_ptr = new simt::containers::vector<double>;
 	simt_v_ptr->resize(10);
-	call_setTo << <1, 1 >> > (*simt_v_ptr, 123);
-	cudaDeviceSynchronize();
+	call_setTo<<<1,1>>>(*simt_v_ptr, 123);
+	simt_sync
 	std::cout << "cpu v = ";
 	for (auto const& d : *simt_v_ptr)
 		std::cout << d << " ";
 	std::cout << std::endl;
 	call_printVector << <1, 1 >> > (*simt_v_ptr);
-	cudaDeviceSynchronize();
+	simt_sync
 	delete simt_v_ptr;
 	std::cout << std::endl;
 }
@@ -151,8 +156,8 @@ void test6() {
 	for (auto const& d : *simt_v_ptr)
 		std::cout << d << " ";
 	std::cout << std::endl;
-	call_printVector << <1, 1 >> > (*simt_v_ptr);
-	cudaDeviceSynchronize();
+	call_printVector<<<1,1>>>(*simt_v_ptr);
+	simt_sync
 	delete simt_v_ptr;
 	std::cout << std::endl;
 }
@@ -174,6 +179,7 @@ public:
 
 	HOSTDEVICE virtual encodedObj encode() const = 0;
 	HOSTDEVICE virtual void decode(encodedObj e) = 0;
+	HOSTDEVICE virtual ABC_t type() const = 0;
 };
 
 class B : public A {
@@ -196,7 +202,12 @@ public:
 		j = e.i;
 	}
 
+	HOSTDEVICE virtual ABC_t type() const {
+		return ABC_t::B;
+	}
+
 	int j = 0;
+	double d[10000];
 };
 
 class C : public A {
@@ -204,6 +215,7 @@ public:
 	HOSTDEVICE C() { ; }
 	HOSTDEVICE C(int j) : d(j) {}
 	HOSTDEVICE C(encodedObj e) : C() { decode(e); }
+
 	HOSTDEVICE ~C() override { ; }
 
 	HOSTDEVICE void sayHi() override {
@@ -219,20 +231,20 @@ public:
 		d = e.d;
 	}
 
+	HOSTDEVICE virtual ABC_t type() const {
+		return ABC_t::C;
+	}
+
 	double d = 0;
+	float f = 1.23;
+	int i = -10;
 };
 
 __global__
 void allocateDeviceObjs(simt::containers::vector<A*> & device_objs, simt::containers::vector<encodedObj> const& encoded_objs) {
 	auto tid = threadIdx.x + blockIdx.x * blockDim.x;
-	if(tid == 0) 
-		printf("device_objs size = %d\n", (int)device_objs.size());
-
-	bool isRoot = tid == 0;
 
 	for (; tid < encoded_objs.size(); tid += blockDim.x * gridDim.x) {
-		if (isRoot)
-			printf("tid = %d\n", (int)tid);
 		switch (encoded_objs[tid].type) {
 		case ABC_t::B:
 			//printf("Allocating B object! %d\n", (int)tid);
@@ -247,6 +259,9 @@ void allocateDeviceObjs(simt::containers::vector<A*> & device_objs, simt::contai
 		default:
 			printf("Error allocating object!\n");
 		}
+
+		if (nullptr == device_objs[tid])
+			printf("failed allocation at tid = %u\n", tid);
 	}
 }
 
@@ -268,8 +283,26 @@ void deallocateDeviceObjs(simt::containers::vector<A*> & device_objs) {
 	}
 }
 
+template <typename T>
+__global__ void compute_sizeof(size_t * size) {
+	auto tid = threadIdx.x + blockIdx.x * blockDim.x;
+	if (tid == 0)
+		*size = sizeof(T);
+}
+
+template <typename T>
+HOST size_t getDeviceSize() {
+	size_t * size = nullptr;
+	cudaMallocManaged((void**)&size, sizeof(size_t));
+	compute_sizeof<T><<<1,1>>>(size);
+	simt_sync;
+	auto const result = *size;
+	cudaFree(size);
+	return result;
+}
+
 void test7() {
-	const auto N = 6000;
+	const auto N = 10;
 	std::vector<A*> host_objs;
 	auto encoded_objs = new simt::containers::vector<encodedObj>();
 	for (auto i = 0; i < N; ++i) {
@@ -282,21 +315,240 @@ void test7() {
 		encoded_objs->push_back(host_objs.back()->encode());
 	}
 
-
 	auto const nBlocks = 128;
 	auto const nThreadsPerBlock = 128;
 	auto device_objs = new simt::containers::vector<A*>(encoded_objs->size(), nullptr);
 	allocateDeviceObjs<<<nBlocks,nThreadsPerBlock>>>(*device_objs, *encoded_objs);
-	check(cudaDeviceSynchronize());
+	simt_sync
 	delete encoded_objs;
 
-	for(size_t i = 0; i < 1000; ++i)
-		sayHi<<<nBlocks,nThreadsPerBlock>>>(*device_objs);
-	check(cudaDeviceSynchronize());
+	size_t nNulls = 0;
+	for (auto const& p : *device_objs) {
+		if (p == nullptr)
+			++nNulls;
+	}
+
+	if (nNulls > 0) {
+		std::cout << "Found " << nNulls << " nullptrs" << std::endl;
+		return;
+	}
+
+	sayHi<<<nBlocks,nThreadsPerBlock>>>(*device_objs);
+	simt_sync
 	deallocateDeviceObjs<<<nBlocks,nThreadsPerBlock>>>(*device_objs);
-	check(cudaDeviceSynchronize());
+	simt_sync
 
 	delete device_objs;
+	for (auto o : host_objs)
+		delete o;
+}
+
+void test8() {
+	thrust::device_vector<double> d;
+	d.resize(10);
+	for (size_t i = 0; i < d.size(); ++i)
+		d[i] = (double)i;
+
+	thrust::host_vector<double> h = d;
+	for (auto const& i : h)
+		std::cout << i << " ";
+	std::cout << std::endl;
+
+}
+
+void test9() {
+	std::cout << "cpu sizeof(A) = " << sizeof(A) << std::endl;
+	std::cout << "gpu sizeof(A) = " << getDeviceSize<A>() << std::endl;
+	std::cout << "cpu sizeof(B) = " << sizeof(B) << std::endl;
+	std::cout << "gpu sizeof(B) = " << getDeviceSize<B>() << std::endl;
+	std::cout << "cpu sizeof(C) = " << sizeof(C) << std::endl;
+	std::cout << "gpu sizeof(C) = " << getDeviceSize<C>() << std::endl;
+}
+
+__global__
+void constructDeviceObjs(simt::containers::vector<A*> & device_objs, simt::containers::vector<encodedObj> const& encoded_objs) {
+	auto tid = threadIdx.x + blockIdx.x * blockDim.x;
+
+	for (; tid < encoded_objs.size(); tid += blockDim.x * gridDim.x) {
+
+		switch (encoded_objs[tid].type) {
+		case ABC_t::B:
+			//printf("constructing B object at %p \n", device_objs[tid]);
+			new(device_objs[tid]) B(encoded_objs[tid]);
+			break;
+		case ABC_t::C:
+			//printf("constructing C object at %p \n", device_objs[tid]);
+			new(device_objs[tid]) C(encoded_objs[tid]);
+			break;
+		case ABC_t::A:
+		case ABC_t::Unk:
+		default:
+			printf("Error allocating object!\n");
+		}
+
+		if (nullptr == device_objs[tid])
+			printf("failed allocation at tid = %u\n", tid);
+	}
+}
+
+__global__
+void destructDeviceObjs(simt::containers::vector<A*> & device_objs) {
+	auto tid = threadIdx.x + blockIdx.x * blockDim.x;
+	for (; tid < device_objs.size(); tid += blockDim.x * gridDim.x) {
+		//printf("Deallocating an A*\n");
+		device_objs[tid]->~A();
+	}
+}
+
+void test10() {
+	const auto N = 5;
+	std::vector<A*> host_objs;
+	auto encoded_objs = new simt::containers::vector<encodedObj>();
+	for (auto i = 0; i < N; ++i) {
+		host_objs.push_back(new B(i));
+		encoded_objs->push_back(host_objs.back()->encode());
+	}
+
+	for (auto i = 0; i < N; ++i) {
+		host_objs.push_back(new C(i));
+		encoded_objs->push_back(host_objs.back()->encode());
+	}
+
+	auto const nBlocks = 128;
+	auto const nThreadsPerBlock = 128;
+	auto device_objs = new simt::containers::vector<A*>(encoded_objs->size(), nullptr);
+	auto const sizeofB = getDeviceSize<B>();
+	auto const sizeofC = getDeviceSize<C>();
+	for(size_t i = 0; i < encoded_objs->size(); ++i)
+		cudaMallocManaged((void**)&(*device_objs)[i], (*encoded_objs)[i].type == ABC_t::B ? sizeofB : sizeofC);
+
+	constructDeviceObjs<<<nBlocks,nThreadsPerBlock>>>(*device_objs, *encoded_objs);
+	simt_sync
+	
+
+	sayHi<<<nBlocks,nThreadsPerBlock>>>(*device_objs);
+	simt_sync
+	destructDeviceObjs<<<nBlocks,nThreadsPerBlock>>>(*device_objs);
+	simt_sync
+
+
+	delete encoded_objs;
+	for (auto p : *device_objs)
+		cudaFree(p);
+	delete device_objs;
+
+	for (auto o : host_objs)
+		delete o;
+}
+
+void test11() {
+	const auto N = 50000;
+	std::vector<A*> host_objs;
+	auto encoded_objs = new simt::containers::vector<encodedObj>();
+	for (auto i = 0; i < N; ++i) {
+		host_objs.push_back(new B(i));
+		encoded_objs->push_back(host_objs.back()->encode());
+	}
+
+	for (auto i = 0; i < N; ++i) {
+		host_objs.push_back(new C(i));
+		encoded_objs->push_back(host_objs.back()->encode());
+	}
+
+	auto const nBlocks = 128;
+	auto const nThreadsPerBlock = 128;
+	auto device_objs = new simt::containers::vector<A*>(encoded_objs->size(), nullptr);
+	auto const sizeofB = getDeviceSize<B>();
+	auto const sizeofC = getDeviceSize<C>();
+
+	std::vector<size_t> offsets{};
+	offsets.push_back(0);
+	for (size_t i = 1; i < encoded_objs->size(); ++i) {
+		auto const& e = (*encoded_objs)[i];
+		switch (e.type) {
+		case ABC_t::B:
+			offsets.push_back(offsets[i - 1] + sizeofB);
+			break;
+		case ABC_t::C:
+			offsets.push_back(offsets[i - 1] + sizeofC);
+			break;
+		default:
+			assert(false);
+		}
+	}
+
+	auto sizeofFold = [sizeofB, sizeofC](size_t currentTotal, encodedObj const& e) {
+		switch (e.type) {
+		case ABC_t::B:
+			return currentTotal + sizeofB;
+		case ABC_t::C:
+			return currentTotal + sizeofC;
+		default:
+			assert(false);
+			return size_t(0);
+		}
+	};
+
+	auto totalSpaceNeeded_bytes = std::accumulate(encoded_objs->begin(), encoded_objs->end(), size_t(0), sizeofFold);
+	std::cout << "total Space needed [bytes] = " << totalSpaceNeeded_bytes << std::endl;
+
+	auto tank = new simt::containers::vector<char>(totalSpaceNeeded_bytes, '\0');
+
+	std::cout << "  Tank setup" << std::endl;
+	std::cout << "--------------" << std::endl;
+
+	for (size_t i = 0; i < encoded_objs->size(); ++i) {
+		(*device_objs)[i] = (A*) (tank->data() + offsets[i]);
+	}
+
+	/*
+	for(size_t i = 1; i < encoded_objs->size(); ++i) {
+		std::cout << "  ";
+		auto const& e = (*encoded_objs)[i];
+		switch (e.type) {
+		case ABC_t::B:
+			(*device_objs)[i] = (*device_objs)[i-1] + sizeofB;
+			std::cout << "B  " << (*device_objs)[i]  << " offset = " << (*device_objs)[i] - (*device_objs)[i - 1] << std::endl;
+			break;
+		case ABC_t::C:
+			(*device_objs)[i] = (*device_objs)[i-1] + sizeofC;
+			std::cout << "C  " << (*device_objs)[i] << " offset = " << (*device_objs)[i] - (*device_objs)[i - 1] << std::endl;
+			break;
+		default:
+			assert(false);
+		}
+	}
+	*/
+
+	//for (size_t i = 0; i < device_objs->size(); ++i) {
+//		std::cout << "A[" << i << "] = " << (*device_objs)[i] << std::endl;
+//	}
+	//std::cout << "A[end] = " << (*device_objs)[2*N] << std::endl;
+
+	auto const tankStart = &(*(tank->begin()));
+	auto const tankEndm1 = &(*(--(tank->end())));
+	auto const tankEnd = &(*(--(tank->end()))) + sizeof(char);
+	std::cout << "tank start = " << (void*)tankStart << std::endl;
+	std::cout << "tank endm1 = " << (void*)tankEndm1 << std::endl;
+	std::cout << "tank end   = " << (void*)tankEnd << std::endl;
+
+	std::cout << "tank start data()= " << (void*) tank->data() << std::endl;
+	std::cout << "tank end data()= " << (void*) (tank->data() + sizeof(char) * tank->size()) << std::endl;
+
+	constructDeviceObjs<<<nBlocks,nThreadsPerBlock>>>(*device_objs, *encoded_objs);
+	simt_sync
+
+
+	sayHi<<<nBlocks,nThreadsPerBlock>>>(*device_objs);
+	simt_sync
+	destructDeviceObjs<<<nBlocks,nThreadsPerBlock>>>(*device_objs);
+	simt_sync
+
+
+	delete encoded_objs;
+	delete tank;
+	delete device_objs;
+
 	for (auto o : host_objs)
 		delete o;
 }

@@ -32,6 +32,13 @@ namespace simt {
 				return clone;
 			}
 
+			HOSTDEVICE vectorIter & operator--() { --p; return *this; }
+			HOSTDEVICE vectorIter operator--(int) {
+				vectorIter clone(*this);
+				--p;
+				return clone;
+			}
+
 		private:
 			pointer p = nullptr;
 		};

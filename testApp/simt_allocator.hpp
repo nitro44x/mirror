@@ -32,13 +32,13 @@ namespace simt {
 
 			HOST T* allocate(std::size_t n) {
 				void* out = nullptr;
-				check(cudaMallocManaged(&out, n * sizeof(T)));
+				simt_check(cudaMallocManaged(&out, n * sizeof(T)));
 				memset(out, 0, n * sizeof(T));
 				return static_cast<T*>(out);
 			}
 
 			HOST void deallocate(T* p, std::size_t) noexcept {
-				check(cudaFree(p));
+				simt_check(cudaFree(p));
 			}
 
 		};
