@@ -101,5 +101,18 @@ namespace simt {
 				simt_check(cudaFree(ptr));
 			}
 		};
+
+		// Provided for symmetry
+		class HostOnly {
+		public:
+			void *operator new(size_t len) {
+				void *ptr = malloc(len);
+				return ptr;
+			}
+
+			void operator delete(void *ptr) {
+				free(ptr);
+			}
+		};
 	}
 }

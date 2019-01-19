@@ -43,6 +43,15 @@ namespace simt {
 			pointer p = nullptr;
 		};
 
+		template <typename T>
+		__global__ void setAllTo(T * start, T * stop, T value) {
+			auto tid = threadIdx.x + blockIdx.x * blockDim.x;
+			auto const N = (stop - start) / sizeof(T);
+			for (; tid < N; tid += blockDim.x * gridDim.x) {
+				start[tid] = value;
+			}
+		}
+
 		template <typename T, class Alloc = simt::memory::managed_allocator<T>>
 		class vector : public simt::memory::Managed {
 		public:
@@ -65,8 +74,8 @@ namespace simt {
 			vector(size_type nElements) : m_alloc(), m_data(m_alloc.allocate(nElements)), m_size(nElements), m_capacity(nElements) {}
 
 			vector(size_type nElements, value_type initValue) : vector(nElements) {
-				for (size_type i = 0; i < nElements; ++i)
-					m_data[i] = initValue;
+				setAllTo<<<128, 128>>>(m_data, m_data+sizeof(T)*m_size, initValue);
+				simt_sync;
 			}
 
 			~vector() {

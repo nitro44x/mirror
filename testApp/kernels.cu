@@ -524,7 +524,3 @@ void test11() {
 	for (auto o : host_objs)
 		delete o;
 }
-
-void test12() {
-
-}
