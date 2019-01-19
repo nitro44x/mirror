@@ -19,6 +19,15 @@ void test8_cpp() {
 
 }
 
+#define RUN_TEST(name) \
+          std::cout << std::endl; \
+          std::cout << "--------------------------------------------------------" << std::endl; \
+          std::cout << "           " << #name << std::endl; \
+          std::cout << "--------------------------------------------------------" << std::endl; \
+          name(); \
+          std::cout << "--------------------------------------------------------" << std::endl; \
+          std::cout << std::endl;
+
 int main() {
 
 	int count = 0;
@@ -35,25 +44,25 @@ int main() {
 	std::cout << "Heap size in bytes = " << heapSize_bytes << std::endl;
 
 	// Print vector tests
-	test1();
-	test2();
-	test3();
-	test3a();
+	RUN_TEST(test1);
+	RUN_TEST(test2);
+	RUN_TEST(test3);
+	RUN_TEST(test3a);
 
 	// Modify vector tests
-	test4();
-	test5();
-	test6();
+	RUN_TEST(test4);
+	RUN_TEST(test5);
+	RUN_TEST(test6);
 
 	// Polymorphic classes Classes
-	test7();
-	test9();
-	//test10();
-	test11();
+	RUN_TEST(test7);
+	RUN_TEST(test9);
+	RUN_TEST(test10);
+	RUN_TEST(test11);
 
 	// Thrust
-	test8();
-	test8_cpp();
+	RUN_TEST(test8);
+	RUN_TEST(test8_cpp);
 
-    return 0;
+	return 0;
 }

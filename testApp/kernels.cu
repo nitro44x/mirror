@@ -207,7 +207,6 @@ public:
 	}
 
 	int j = 0;
-	double d[10000];
 };
 
 class C : public A {
@@ -236,8 +235,6 @@ public:
 	}
 
 	double d = 0;
-	float f = 1.23;
-	int i = -10;
 };
 
 __global__
@@ -442,7 +439,7 @@ void test10() {
 }
 
 void test11() {
-	const auto N = 50000;
+	const auto N = 5;
 	std::vector<A*> host_objs;
 	auto encoded_objs = new simt::containers::vector<encodedObj>();
 	for (auto i = 0; i < N; ++i) {
@@ -461,22 +458,6 @@ void test11() {
 	auto const sizeofB = getDeviceSize<B>();
 	auto const sizeofC = getDeviceSize<C>();
 
-	std::vector<size_t> offsets{};
-	offsets.push_back(0);
-	for (size_t i = 1; i < encoded_objs->size(); ++i) {
-		auto const& e = (*encoded_objs)[i];
-		switch (e.type) {
-		case ABC_t::B:
-			offsets.push_back(offsets[i - 1] + sizeofB);
-			break;
-		case ABC_t::C:
-			offsets.push_back(offsets[i - 1] + sizeofC);
-			break;
-		default:
-			assert(false);
-		}
-	}
-
 	auto sizeofFold = [sizeofB, sizeofC](size_t currentTotal, encodedObj const& e) {
 		switch (e.type) {
 		case ABC_t::B:
@@ -492,54 +473,45 @@ void test11() {
 	auto totalSpaceNeeded_bytes = std::accumulate(encoded_objs->begin(), encoded_objs->end(), size_t(0), sizeofFold);
 	std::cout << "total Space needed [bytes] = " << totalSpaceNeeded_bytes << std::endl;
 
-	auto tank = new simt::containers::vector<char>(totalSpaceNeeded_bytes, '\0');
+	auto tank = new simt::containers::vector<char, simt::memory::device_allocator<char>>(totalSpaceNeeded_bytes, '\0');
 
-	std::cout << "  Tank setup" << std::endl;
-	std::cout << "--------------" << std::endl;
+	std::cout << "               Tank setup" << std::endl;
+	std::cout << "--------------------------" << std::endl;
 
+	size_t offset = 0;
 	for (size_t i = 0; i < encoded_objs->size(); ++i) {
-		(*device_objs)[i] = (A*) (tank->data() + offsets[i]);
-	}
+		
+		(*device_objs)[i] = (A*)(tank->data() + offset);
 
-	/*
-	for(size_t i = 1; i < encoded_objs->size(); ++i) {
-		std::cout << "  ";
 		auto const& e = (*encoded_objs)[i];
 		switch (e.type) {
 		case ABC_t::B:
-			(*device_objs)[i] = (*device_objs)[i-1] + sizeofB;
-			std::cout << "B  " << (*device_objs)[i]  << " offset = " << (*device_objs)[i] - (*device_objs)[i - 1] << std::endl;
+			offset += sizeofB;
 			break;
 		case ABC_t::C:
-			(*device_objs)[i] = (*device_objs)[i-1] + sizeofC;
-			std::cout << "C  " << (*device_objs)[i] << " offset = " << (*device_objs)[i] - (*device_objs)[i - 1] << std::endl;
+			offset += sizeofC;
 			break;
 		default:
 			assert(false);
 		}
 	}
-	*/
 
-	//for (size_t i = 0; i < device_objs->size(); ++i) {
-//		std::cout << "A[" << i << "] = " << (*device_objs)[i] << std::endl;
-//	}
-	//std::cout << "A[end] = " << (*device_objs)[2*N] << std::endl;
+	for (size_t i = 0; i < device_objs->size(); ++i) {
+		if(i < 3 || i+3 > device_objs->size())
+			std::cout << "A[" << i << "] = " << (*device_objs)[i] << std::endl;
+	}
 
 	auto const tankStart = &(*(tank->begin()));
-	auto const tankEndm1 = &(*(--(tank->end())));
 	auto const tankEnd = &(*(--(tank->end()))) + sizeof(char);
 	std::cout << "tank start = " << (void*)tankStart << std::endl;
-	std::cout << "tank endm1 = " << (void*)tankEndm1 << std::endl;
 	std::cout << "tank end   = " << (void*)tankEnd << std::endl;
-
-	std::cout << "tank start data()= " << (void*) tank->data() << std::endl;
-	std::cout << "tank end data()= " << (void*) (tank->data() + sizeof(char) * tank->size()) << std::endl;
 
 	constructDeviceObjs<<<nBlocks,nThreadsPerBlock>>>(*device_objs, *encoded_objs);
 	simt_sync
 
-
-	sayHi<<<nBlocks,nThreadsPerBlock>>>(*device_objs);
+	for(size_t i = 0; i < 10000; ++i)
+		sayHi<<<nBlocks,nThreadsPerBlock>>>(*device_objs);
+	std::cout << "Launched a bunch of sayHi's" << std::endl;
 	simt_sync
 	destructDeviceObjs<<<nBlocks,nThreadsPerBlock>>>(*device_objs);
 	simt_sync
@@ -551,4 +523,8 @@ void test11() {
 
 	for (auto o : host_objs)
 		delete o;
+}
+
+void test12() {
+
 }
