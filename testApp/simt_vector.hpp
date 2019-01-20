@@ -52,6 +52,14 @@ namespace simt {
 			}
 		}
 
+		template <typename T>
+		__global__ void setIndexTo(T * location, T value) {
+			auto tid = threadIdx.x + blockIdx.x * blockDim.x;
+			if (tid == 0) {
+				*location = value;
+			}
+		}
+
 
 		template <typename T> struct allowed_new_overloads_vector { using is_whitelisted = std::false_type; };
 		template <> struct allowed_new_overloads_vector<simt::memory::HostOnly> { using is_whitelisted = std::true_type; };
@@ -101,12 +109,7 @@ namespace simt {
 			}
 
 			HOST vector(vector const& other) : m_alloc(), m_data(m_alloc.allocate(other.m_size)), m_size(other.m_size), m_capacity(other.m_size) {
-				if (std::is_same<simt::memory::device_allocator<T>, allocator_type>::value) {
-					cudaMemcpy(m_data, other.m_data, sizeof(T) * m_size, cudaMemcpyDeviceToDevice);
-				}
-				else {
-					memcpy(m_data, other.m_data, sizeof(T) * m_size);
-				}
+				internal_memcpy(m_data, other.m_data, m_size);
 			}
 
 			HOST vector& operator=(vector const& other) {
@@ -117,13 +120,7 @@ namespace simt {
 				m_size = other.m_size;
 				m_data = m_alloc.allocate(m_size);
 				m_capacity = m_size;
-
-				if (std::is_same<simt::memory::device_allocator<T>, allocator_type>::value) {
-					cudaMemcpy(m_data, other.m_data, sizeof(T) * m_size, cudaMemcpyDeviceToDevice);
-				}
-				else {
-					memcpy(m_data, other.m_data, sizeof(T) * m_size);
-				}
+				internal_memcpy(m_data, other.m_data, m_size);
 
 				return *this;
 			}
@@ -150,7 +147,7 @@ namespace simt {
 			HOST void resize(size_type nElements) {
 				if (nElements > capacity()) {
 					pointer tmp = m_alloc.allocate(nElements);
-					memcpy(tmp, m_data, sizeof(T) * size());
+					internal_memcpy(tmp, m_data, size());
 					m_alloc.deallocate(m_data, capacity());
 					m_data = tmp;
 					m_capacity = nElements;
@@ -163,7 +160,7 @@ namespace simt {
 				auto const requiredCapcity = size() + 1;
 				if (requiredCapcity > capacity())
 					grow(calculate_growth(requiredCapcity));
-				this->operator[](size()) = value;
+				internal_setValue(size(), value);
 				++m_size;
 			}
 
@@ -184,7 +181,7 @@ namespace simt {
 
 			HOST void grow(size_type newCapacity) {
 				pointer tmp = m_alloc.allocate(newCapacity);
-				memcpy(tmp, m_data, sizeof(T) * std::min(size(), newCapacity));
+				internal_memcpy(tmp, m_data, std::min(size(), newCapacity));
 				m_alloc.deallocate(m_data, capacity());
 				m_data = tmp;
 				m_capacity = newCapacity;
@@ -195,6 +192,27 @@ namespace simt {
 				if (newCapacity < requiredCapcity)
 					return requiredCapcity;
 				return newCapacity;
+			}
+
+			HOST static void internal_memcpy(pointer dst, pointer src, size_type nElements) {
+				// \todo Find a way to do this at compile time.
+				if (std::is_same<simt::memory::device_allocator<T>, allocator_type>::value) {
+					cudaMemcpy(dst, src, sizeof(T) * nElements, cudaMemcpyDeviceToDevice);
+				}
+				else {
+					memcpy(dst, src, sizeof(T) * nElements);
+				}
+			}
+
+			HOST void internal_setValue(size_type index, T value) {
+				// \todo Find a way to do this at compile time.
+				if (std::is_same<simt::memory::device_allocator<T>, allocator_type>::value) {
+					setIndexTo<<<1,1>>>(data() + index, value);
+					simt_sync;
+				}
+				else {
+					this->operator[](size()) = value;
+				}
 			}
 
 			allocator_type m_alloc{};

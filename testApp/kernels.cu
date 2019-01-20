@@ -573,7 +573,12 @@ void test13() {
 }
 
 template <typename T>
-void message(std::string prefix, T const& v) {
+void message(std::string prefix, T const& v, bool shouldPrint) {
+	if (!shouldPrint) {
+		std::cout << "Skipping printing because vector is device backed" << std::endl;
+		return;
+	}
+
 	if (v.memory_type != simt::memory::OverloadNewType::eDeviceOnly) {
 		std::cout << prefix << " :: v = ";
 		for (auto const& d : v)
@@ -583,39 +588,41 @@ void message(std::string prefix, T const& v) {
 }
 
 template <typename T>
-void test_copy_move_stuff() {
+void test_copy_move_stuff(bool shouldPrint = true) {
 	T managedNew_managedData(4, 1);
 	managedNew_managedData.push_back(10);
-	message("Original", managedNew_managedData);
+	message("Original", managedNew_managedData, shouldPrint);
 	T managedNew_managedData_copy(managedNew_managedData);
-	message("Copy Constructor", managedNew_managedData_copy);
+	message("Copy Constructor", managedNew_managedData_copy, shouldPrint);
 	std::cout << std::endl;
 
-	std::iota(managedNew_managedData.begin(), managedNew_managedData.end(), -4);
-	message("Original", managedNew_managedData);
+	// Can't do std::iota() since this could be a device backed vector
+	// std::iota(managedNew_managedData.begin(), managedNew_managedData.end(), -4);
+	managedNew_managedData = T(5, 2);
+	message("Original", managedNew_managedData, shouldPrint);
 	managedNew_managedData_copy = managedNew_managedData;
-	message("Copy Assigned", managedNew_managedData_copy);
+	message("Copy Assigned", managedNew_managedData_copy, shouldPrint);
 	std::cout << std::endl;
 
-	message("Original", managedNew_managedData);
+	message("Original", managedNew_managedData, shouldPrint);
 	T managedNew_managedData_move(std::move(managedNew_managedData));
-	message("Move Constructed", managedNew_managedData_move);
+	message("Move Constructed", managedNew_managedData_move, shouldPrint);
 	std::cout << std::endl;
 
 	T managedNew_managedData_moveAssign{};
 	managedNew_managedData_copy.push_back(123);
 	managedNew_managedData_copy.push_back(321);
-	message("Original", managedNew_managedData_copy);
+	message("Original", managedNew_managedData_copy, shouldPrint);
 	managedNew_managedData_moveAssign = std::move(managedNew_managedData_copy);
-	message("Move Assigned", managedNew_managedData_moveAssign);
+	message("Move Assigned", managedNew_managedData_moveAssign, shouldPrint);
 }
 
 void test14() {
 	test_copy_move_stuff<simt::containers::vector<int, simt::memory::managed_allocator<int>, simt::memory::OverloadNewType::eManaged>>();
 	test_copy_move_stuff<simt::containers::vector<int, simt::memory::managed_allocator<int>, simt::memory::OverloadNewType::eHostOnly>>();
 
-	//test_copy_move_stuff<simt::containers::vector<int, simt::memory::device_allocator<int>, simt::memory::OverloadNewType::eManaged>>();
-	//test_copy_move_stuff<simt::containers::vector<int, simt::memory::device_allocator<int>, simt::memory::OverloadNewType::eHostOnly>>();
+	test_copy_move_stuff<simt::containers::vector<int, simt::memory::device_allocator<int>, simt::memory::OverloadNewType::eManaged>>(false);
+	test_copy_move_stuff<simt::containers::vector<int, simt::memory::device_allocator<int>, simt::memory::OverloadNewType::eHostOnly>>(false);
 
 	test_copy_move_stuff<simt::containers::vector<int, std::allocator<int>, simt::memory::OverloadNewType::eManaged>>();
 	test_copy_move_stuff<simt::containers::vector<int, std::allocator<int>, simt::memory::OverloadNewType::eHostOnly>>();
