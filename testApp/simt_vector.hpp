@@ -76,12 +76,15 @@ namespace simt {
 			using is_whitelisted = allowed_new_overloads_vector<simt::memory::Overload_trait_t<New_t>::type>::is_whitelisted;
 			static_assert(is_whitelisted::value, "Invalid new/delete overload for a vector, cannot use device only overload");
 
+
+			static const simt::memory::OverloadNewType memory_type = New_t;
+
 		public:
 			vector() = default;
 
-			vector(size_type nElements) : m_alloc(), m_data(m_alloc.allocate(nElements)), m_size(nElements), m_capacity(nElements) {}
+			HOST vector(size_type nElements) : m_alloc(), m_data(m_alloc.allocate(nElements)), m_size(nElements), m_capacity(nElements) {}
 
-			vector(size_type nElements, value_type initValue) : vector(nElements) {
+			HOST vector(size_type nElements, value_type initValue) : vector(nElements) {
 				// \todo Find a way to do this at compile time.
 				if (std::is_same<simt::memory::device_allocator<T>, allocator_type>::value) {
 					setAllTo<<<128,128>>>(m_data, m_data + sizeof(T)*m_size, initValue);
@@ -93,9 +96,56 @@ namespace simt {
 				}
 			}
 
-			~vector() {
+			HOST ~vector() {
 				m_alloc.deallocate(m_data, m_size);
 			}
+
+			HOST vector(vector const& other) : m_alloc(), m_data(m_alloc.allocate(other.m_size)), m_size(other.m_size), m_capacity(other.m_size) {
+				if (std::is_same<simt::memory::device_allocator<T>, allocator_type>::value) {
+					cudaMemcpy(m_data, other.m_data, sizeof(T) * m_size, cudaMemcpyDeviceToDevice);
+				}
+				else {
+					memcpy(m_data, other.m_data, sizeof(T) * m_size);
+				}
+			}
+
+			HOST vector& operator=(vector const& other) {
+				if (&other == this)
+					return *this;
+
+				m_alloc.deallocate(m_data, m_size);
+				m_size = other.m_size;
+				m_data = m_alloc.allocate(m_size);
+				m_capacity = m_size;
+
+				if (std::is_same<simt::memory::device_allocator<T>, allocator_type>::value) {
+					cudaMemcpy(m_data, other.m_data, sizeof(T) * m_size, cudaMemcpyDeviceToDevice);
+				}
+				else {
+					memcpy(m_data, other.m_data, sizeof(T) * m_size);
+				}
+
+				return *this;
+			}
+
+			HOST vector(vector && other) : m_alloc(std::move(other.m_alloc)), m_data(std::move(other.m_data)),
+				                      m_size(std::move(other.m_size)), m_capacity(std::move(other.m_capacity)) {
+				other.m_data = nullptr;
+			}
+
+			HOST vector& operator=(vector && other) {
+				if (&other == this)
+					return *this;
+
+				m_alloc.deallocate(m_data, m_size);
+				m_alloc = std::move(other.m_alloc);
+				m_size = std::move(other.m_size);
+				m_capacity = std::move(other.m_capacity);
+				m_data = std::move(other.m_data);
+				other.m_data = nullptr;
+				return *this;
+			}
+
 
 			HOST void resize(size_type nElements) {
 				if (nElements > capacity()) {

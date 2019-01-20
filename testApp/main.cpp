@@ -68,5 +68,8 @@ int main() {
 	RUN_TEST(test12);
 	RUN_TEST(test13);
 
+	// Move/copy
+	RUN_TEST(test14);
+
 	return 0;
 }

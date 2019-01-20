@@ -4,6 +4,7 @@
 
 #include <vector>
 #include <numeric>
+#include <string>
 
 #include <iostream>
 #include <stdio.h>
@@ -569,4 +570,53 @@ void test13() {
 	delete managed_HostOnlyData_v;
 	delete hostOnly_DeviceOnlyData_v;
 	delete hostOnly_HostOnlyData_v;
+}
+
+template <typename T>
+void message(std::string prefix, T const& v) {
+	if (v.memory_type != simt::memory::OverloadNewType::eDeviceOnly) {
+		std::cout << prefix << " :: v = ";
+		for (auto const& d : v)
+			std::cout << d << " ";
+		std::cout << std::endl;
+	}
+}
+
+template <typename T>
+void test_copy_move_stuff() {
+	T managedNew_managedData(4, 1);
+	managedNew_managedData.push_back(10);
+	message("Original", managedNew_managedData);
+	T managedNew_managedData_copy(managedNew_managedData);
+	message("Copy Constructor", managedNew_managedData_copy);
+	std::cout << std::endl;
+
+	std::iota(managedNew_managedData.begin(), managedNew_managedData.end(), -4);
+	message("Original", managedNew_managedData);
+	managedNew_managedData_copy = managedNew_managedData;
+	message("Copy Assigned", managedNew_managedData_copy);
+	std::cout << std::endl;
+
+	message("Original", managedNew_managedData);
+	T managedNew_managedData_move(std::move(managedNew_managedData));
+	message("Move Constructed", managedNew_managedData_move);
+	std::cout << std::endl;
+
+	T managedNew_managedData_moveAssign{};
+	managedNew_managedData_copy.push_back(123);
+	managedNew_managedData_copy.push_back(321);
+	message("Original", managedNew_managedData_copy);
+	managedNew_managedData_moveAssign = std::move(managedNew_managedData_copy);
+	message("Move Assigned", managedNew_managedData_moveAssign);
+}
+
+void test14() {
+	test_copy_move_stuff<simt::containers::vector<int, simt::memory::managed_allocator<int>, simt::memory::OverloadNewType::eManaged>>();
+	test_copy_move_stuff<simt::containers::vector<int, simt::memory::managed_allocator<int>, simt::memory::OverloadNewType::eHostOnly>>();
+
+	//test_copy_move_stuff<simt::containers::vector<int, simt::memory::device_allocator<int>, simt::memory::OverloadNewType::eManaged>>();
+	//test_copy_move_stuff<simt::containers::vector<int, simt::memory::device_allocator<int>, simt::memory::OverloadNewType::eHostOnly>>();
+
+	test_copy_move_stuff<simt::containers::vector<int, std::allocator<int>, simt::memory::OverloadNewType::eManaged>>();
+	test_copy_move_stuff<simt::containers::vector<int, std::allocator<int>, simt::memory::OverloadNewType::eHostOnly>>();
 }
