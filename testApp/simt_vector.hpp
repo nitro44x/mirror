@@ -52,10 +52,14 @@ namespace simt {
 			}
 		}
 
-		template <typename T, class Alloc = simt::memory::managed_allocator<T>>
-		class vector : public simt::memory::Managed {
-		public:
 
+		template <typename T> struct allowed_new_overloads_vector { using is_whitelisted = std::false_type; };
+		template <> struct allowed_new_overloads_vector<simt::memory::HostOnly> { using is_whitelisted = std::true_type; };
+		template <> struct allowed_new_overloads_vector<simt::memory::Managed> { using is_whitelisted = std::true_type; };
+
+		template <typename T, class Alloc = simt::memory::managed_allocator<T>, simt::memory::OverloadNewType New_t = simt::memory::OverloadNewType::eManaged>
+		class vector final : public simt::memory::Overload_trait_t<New_t>::type {
+		public:
 			using value_type = T;
 			using allocator_type = Alloc;
 			using pointer = T * ;
@@ -69,13 +73,24 @@ namespace simt {
 			using reverse_iterator = std::reverse_iterator<iterator>;
 			using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
+			using is_whitelisted = allowed_new_overloads_vector<simt::memory::Overload_trait_t<New_t>::type>::is_whitelisted;
+			static_assert(is_whitelisted::value, "Invalid new/delete overload for a vector, cannot use device only overload");
+
 		public:
 			vector() = default;
+
 			vector(size_type nElements) : m_alloc(), m_data(m_alloc.allocate(nElements)), m_size(nElements), m_capacity(nElements) {}
 
 			vector(size_type nElements, value_type initValue) : vector(nElements) {
-				setAllTo<<<128, 128>>>(m_data, m_data+sizeof(T)*m_size, initValue);
-				simt_sync;
+				// \todo Find a way to do this at compile time.
+				if (std::is_same<simt::memory::device_allocator<T>, allocator_type>::value) {
+					setAllTo<<<128,128>>>(m_data, m_data + sizeof(T)*m_size, initValue);
+					simt_sync;
+				}
+				else {
+					for (size_type i = 0; i < nElements; ++i)
+						m_data[i] = initValue;
+				}
 			}
 
 			~vector() {

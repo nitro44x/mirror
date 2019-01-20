@@ -64,5 +64,9 @@ int main() {
 	RUN_TEST(test8);
 	RUN_TEST(test8_cpp);
 
+	// Overloading news
+	RUN_TEST(test12);
+	RUN_TEST(test13);
+
 	return 0;
 }

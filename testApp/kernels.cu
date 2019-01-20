@@ -473,7 +473,7 @@ void test11() {
 	auto totalSpaceNeeded_bytes = std::accumulate(encoded_objs->begin(), encoded_objs->end(), size_t(0), sizeofFold);
 	std::cout << "total Space needed [bytes] = " << totalSpaceNeeded_bytes << std::endl;
 
-	auto tank = new simt::containers::vector<char, simt::memory::device_allocator<char>>(totalSpaceNeeded_bytes, '\0');
+	auto tank = new simt::containers::vector<char, simt::memory::device_allocator<char>, simt::memory::OverloadNewType::eHostOnly>(totalSpaceNeeded_bytes, '\0');
 
 	std::cout << "               Tank setup" << std::endl;
 	std::cout << "--------------------------" << std::endl;
@@ -523,4 +523,50 @@ void test11() {
 
 	for (auto o : host_objs)
 		delete o;
+}
+
+void test12() {
+	// Device only pointers to vectors don't really make sense since they must be malloced on teh host side.
+
+	// managed data
+	auto managed_managedData_v = new simt::containers::vector<int>(4);
+	auto hostOnly_managedData_v = new simt::containers::vector<int, simt::memory::managed_allocator<int>, simt::memory::OverloadNewType::eHostOnly>(4);
+
+	// device data
+	auto managed_DeviceOnlyData_v = new simt::containers::vector<int, simt::memory::device_allocator<int>, simt::memory::OverloadNewType::eManaged>(4);
+	auto hostOnly_DeviceOnlyData_v = new simt::containers::vector<int, simt::memory::device_allocator<int>, simt::memory::OverloadNewType::eHostOnly>(4);
+	
+	// host data
+	auto managed_HostOnlyData_v = new simt::containers::vector<int, std::allocator<int>, simt::memory::OverloadNewType::eManaged>(4);
+	auto hostOnly_HostOnlyData_v = new simt::containers::vector<int, std::allocator<int>, simt::memory::OverloadNewType::eHostOnly>(4);
+
+	delete managed_managedData_v;
+	delete hostOnly_managedData_v;
+	delete managed_DeviceOnlyData_v;
+	delete managed_HostOnlyData_v;
+	delete hostOnly_DeviceOnlyData_v;
+	delete hostOnly_HostOnlyData_v;
+}
+
+void test13() {
+	// Device only pointers to vectors don't really make sense since they must be malloced on teh host side.
+
+	// managed data
+	auto managed_managedData_v = new simt::containers::vector<int>(4, 1);
+	auto hostOnly_managedData_v = new simt::containers::vector<int, simt::memory::managed_allocator<int>, simt::memory::OverloadNewType::eHostOnly>(4, 1);
+
+	// device data
+	auto managed_DeviceOnlyData_v = new simt::containers::vector<int, simt::memory::device_allocator<int>, simt::memory::OverloadNewType::eManaged>(4, 1);
+	auto hostOnly_DeviceOnlyData_v = new simt::containers::vector<int, simt::memory::device_allocator<int>, simt::memory::OverloadNewType::eHostOnly>(4, 1);
+
+	// host data
+	auto managed_HostOnlyData_v = new simt::containers::vector<int, std::allocator<int>, simt::memory::OverloadNewType::eManaged>(4, 1);
+	auto hostOnly_HostOnlyData_v = new simt::containers::vector<int, std::allocator<int>, simt::memory::OverloadNewType::eHostOnly>(4, 1);
+
+	delete managed_managedData_v;
+	delete hostOnly_managedData_v;
+	delete managed_DeviceOnlyData_v;
+	delete managed_HostOnlyData_v;
+	delete hostOnly_DeviceOnlyData_v;
+	delete hostOnly_HostOnlyData_v;
 }

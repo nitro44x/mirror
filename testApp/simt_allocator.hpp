@@ -103,16 +103,36 @@ namespace simt {
 		};
 
 		// Provided for symmetry
-		class HostOnly {
-		public:
-			void *operator new(size_t len) {
-				void *ptr = malloc(len);
-				return ptr;
-			}
+		class HostOnly { };
 
-			void operator delete(void *ptr) {
-				free(ptr);
-			}
+		enum class OverloadNewType {
+			eManaged = 0,
+			eDeviceOnly,
+			eHostOnly
 		};
+
+		template<OverloadNewType T> struct force_specialization : public std::false_type {};
+
+		template <OverloadNewType T>
+		struct Overload_trait_t {
+			using type = HostOnly;
+			static_assert(force_specialization<T>::value, "Must choose how to overload new/delete");
+		};
+
+		template <>
+		struct Overload_trait_t<OverloadNewType::eManaged> {
+			using type = Managed;
+		};
+
+		template <>
+		struct Overload_trait_t<OverloadNewType::eDeviceOnly> {
+			using type = DeviceOnly;
+		};
+
+		template <>
+		struct Overload_trait_t<OverloadNewType::eHostOnly> {
+			using type = HostOnly;
+		};
+
 	}
 }
