@@ -65,7 +65,9 @@ namespace simt {
 		template <> struct allowed_new_overloads_vector<simt::memory::HostOnly> { using is_whitelisted = std::true_type; };
 		template <> struct allowed_new_overloads_vector<simt::memory::Managed> { using is_whitelisted = std::true_type; };
 
-		template <typename T, class Alloc = simt::memory::managed_allocator<T>, simt::memory::OverloadNewType New_t = simt::memory::OverloadNewType::eManaged>
+		template <typename T, 
+			      class Alloc = simt::memory::managed_allocator<T>, 
+			      simt::memory::OverloadNewType New_t = simt::memory::OverloadNewType::eManaged>
 		class vector final : public simt::memory::Overload_trait_t<New_t>::type {
 		public:
 			using value_type = T;
@@ -102,6 +104,13 @@ namespace simt {
 					for (size_type i = 0; i < nElements; ++i)
 						m_data[i] = initValue;
 				}
+			}
+
+			template<typename _T, 
+				     typename _Alloc, 
+				     simt::memory::OverloadNewType _New_t>
+			HOST vector(vector<_T, _Alloc, _New_t> * encodedObjs) {
+				static_assert(std::is_trivially_copyable<_T>::value, "Cannot use non-trivial copyable encoded objects");
 			}
 
 			HOST ~vector() {

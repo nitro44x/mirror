@@ -71,5 +71,8 @@ int main() {
 	// Move/copy
 	RUN_TEST(test14);
 
+	// MaybeOwner
+	RUN_TEST(test15);
+
 	return 0;
 }

@@ -627,3 +627,196 @@ void test14() {
 	test_copy_move_stuff<simt::containers::vector<int, std::allocator<int>, simt::memory::OverloadNewType::eManaged>>();
 	test_copy_move_stuff<simt::containers::vector<int, std::allocator<int>, simt::memory::OverloadNewType::eHostOnly>>();
 }
+
+enum class BaseDerived {
+	Base = 0,
+	Derived1,
+	Derived2,
+	Derived1_2,
+	Max_
+};
+
+struct encodeBase {};
+
+struct encodeDerived1 {
+	int i;
+};
+
+struct encodeDerived2 {
+	double d;
+};
+
+struct encodeDerived1_2 {
+	simt::containers::vector<double> * v;
+	encodeDerived1 derived1;
+};
+
+struct encode_t {
+
+	union {
+		encodeBase base;
+		encodeDerived1 d1;
+		encodeDerived2 d2;
+		encodeDerived1_2 d1_2;
+	} encoded_objs[static_cast<size_t>(BaseDerived::Max_)];
+};
+
+class Base {
+public:
+	HOST virtual ~Base() { ; }
+
+	HOSTDEVICE virtual void sayHi() = 0;
+
+	HOSTDEVICE virtual encode_t encode() const = 0;
+	HOSTDEVICE virtual void decode(encode_t e) = 0;
+	HOSTDEVICE virtual BaseDerived type() const {
+		return BaseDerived::Base;
+	}
+};
+
+class Derived1 : public Base {
+public:
+	HOSTDEVICE Derived1() { ; }
+	HOSTDEVICE Derived1(int j) : j(j) {}
+	HOSTDEVICE Derived1(encode_t e) : Derived1() { decode(e); }
+	HOST ~Derived1() override { ; }
+
+	HOSTDEVICE void sayHi() override {
+		printf("Hello from Derived1, j = %d\n", j);
+		++j;
+	}
+
+	HOSTDEVICE virtual encode_t encode() const {
+		//return { BaseDerived::Derived1, 0, j };
+		return {};
+	}
+
+	HOSTDEVICE virtual void decode(encode_t e) {
+		// j = e.i;
+	}
+
+	HOSTDEVICE virtual BaseDerived type() const {
+		return BaseDerived::Derived1;
+	}
+
+	int j = 0;
+};
+
+class Derived2 : public Base {
+public:
+	HOSTDEVICE Derived2() { ; }
+	HOSTDEVICE Derived2(int j) : d(j) {}
+	HOSTDEVICE Derived2(encode_t e) : Derived2() { decode(e); }
+
+	HOST ~Derived2() override { ; }
+
+	HOSTDEVICE void sayHi() override {
+		printf("Hello from Derived2, d = %lf\n", d);
+		++d;
+	}
+
+	HOSTDEVICE virtual encode_t encode() const {
+		//return { ABC_t::C, d, 0 };
+		return {};
+	}
+
+	HOSTDEVICE virtual void decode(encode_t e) {
+		//d = e.d;
+	}
+
+	HOSTDEVICE virtual BaseDerived type() const {
+		return BaseDerived::Derived2;
+	}
+
+	double d = 0;
+};
+
+class Derived1_2 : public Derived1 {
+public:
+	HOSTDEVICE Derived1_2() { ; }
+
+	HOST Derived1_2(size_t j, double s) : v(new simt::containers::vector<double>(j)) {
+		std::iota(v->begin(), v->end(), s);
+	}
+
+	HOSTDEVICE Derived1_2(encode_t e) : Derived1_2() { decode(e); }
+
+	HOST ~Derived1_2() override { ; }
+
+	HOSTDEVICE void sayHi() override {
+		printf("Hello from Derived1, ");
+		if (!v) {
+			printf("No Data ");
+		}
+		else {
+			printf("v = ");
+			for (auto & d : *v) {
+				printf("%lf ", d);
+				++d;
+			}
+		}
+		printf(" :: From Derived1: ");
+		Derived1::sayHi();
+	}
+
+	HOSTDEVICE virtual encode_t encode() const {
+		//return { ABC_t::C, d, 0 };
+		return {};
+	}
+
+	HOSTDEVICE virtual void decode(encode_t e) {
+		//d = e.d;
+	}
+
+	HOSTDEVICE virtual BaseDerived type() const {
+		return BaseDerived::Derived1_2;
+	}
+
+	simt::memory::MaybeOwner<simt::containers::vector<double>> v;
+};
+
+// From a vector of encodedObjs, construct a vector of the polymorphic type on the device
+void test15() {
+	std::vector<Base*> host_objs;
+	simt::memory::MaybeOwner<simt::containers::vector<double>> v1(new simt::containers::vector<double>(5, 1));
+	call_printVector<<<1,1>>>(*v1);
+	simt_sync;
+	simt::memory::MaybeOwner<simt::containers::vector<double>> v2(v1.get(), false);
+	call_printVector<<<1,1>>>(*v2);
+	simt_sync;
+	std::iota(v1->begin(), v1->end(), -10);
+	call_printVector<<<1,1>>>(*v1);
+	simt_sync;
+	call_printVector<<<1,1>>>(*v2);
+	simt_sync;
+
+	simt::memory::MaybeOwner<simt::containers::vector<double>> v3(std::move(v1));
+	call_printVector<<<1,1>>>(*v3);
+	simt_sync;
+	auto v4 = std::move(v3);
+	call_printVector<<<1,1>>>(*v4);
+	simt_sync;
+	call_printVector<<<1,1>>>(*v2);
+	simt_sync;
+}
+
+void test16() {
+	const auto N = 5;
+	std::vector<Base*> host_objs;
+	simt::memory::MaybeOwner<simt::containers::vector<encode_t>> encoded_objs(new simt::containers::vector<encode_t>);
+	for (auto i = 0; i < N; ++i) {
+		host_objs.push_back(new Derived1(i));
+		encoded_objs->push_back(host_objs.back()->encode());
+
+		host_objs.push_back(new Derived2(i));
+		encoded_objs->push_back(host_objs.back()->encode());
+
+		host_objs.push_back(new Derived1_2(5, i));
+		encoded_objs->push_back(host_objs.back()->encode());
+	}
+
+	using vector_of_Aptr = simt::containers::vector<Base*, simt::memory::device_allocator<Base*>>;
+	auto device_objs = new vector_of_Aptr(encoded_objs.get());
+
+	delete device_objs;
+}

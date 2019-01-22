@@ -134,5 +134,81 @@ namespace simt {
 			using type = HostOnly;
 		};
 
+		template <typename T>
+		class MaybeOwner {
+		public:
+			using value_type = T;
+			using pointer = T*;
+			using const_pointer = const T*;
+			using reference = T & ;
+			using const_reference = const T&;
+			using size_type = std::size_t;
+			using difference_type = std::ptrdiff_t;
+			using iterator = T::iterator;
+			using const_iterator = const iterator;
+			using reverse_iterator = std::reverse_iterator<iterator>;
+			using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+
+		public:
+			HOSTDEVICE MaybeOwner() { ; }
+			HOSTDEVICE MaybeOwner(pointer p, bool takeOwnership = true) : m_data(p), m_owner(takeOwnership) {}
+
+			// This being HOST only might mean we are safe on the GPU side, but it would 
+			// mean we are relaying on the destructor of T to be HOST only as well
+			HOST ~MaybeOwner() {
+				if (m_owner && m_data)
+					delete m_data;
+			}
+
+			HOSTDEVICE MaybeOwner(MaybeOwner const&) = delete;
+			HOSTDEVICE MaybeOwner& operator=(MaybeOwner const&) = delete;
+
+			HOSTDEVICE MaybeOwner(MaybeOwner && other) : m_data(std::move(other.m_data)), m_owner(std::move(other.m_owner)) {
+				other.m_owner = false;
+			}
+
+			HOSTDEVICE MaybeOwner& operator=(MaybeOwner && other) {
+				if (*this == other)
+					return *this;
+
+				m_data = std::move(other.m_data);
+				m_owner = std::move(other.m_owner);
+				other.m_owner = false;
+
+				return *this;
+			}
+
+			HOSTDEVICE pointer get() const {
+				return m_data;
+			}
+
+			HOSTDEVICE reference operator[](size_type index) { 
+				return m_data->operator[](index); 
+			}
+
+			HOSTDEVICE const_reference operator[](size_type index) const {
+				return m_data->operator[](index); 
+			}
+
+			HOSTDEVICE reference operator*() {
+				return *m_data;
+			}
+
+			HOSTDEVICE bool operator==(MaybeOwner const& other) { return other.m_data == m_data; }
+			HOSTDEVICE bool operator!=(MaybeOwner const& other) { return !(*this == other); }
+
+			HOSTDEVICE pointer operator->() { return get(); }
+
+			HOSTDEVICE iterator begin() { return m_data->begin(); }
+			HOSTDEVICE iterator end() { return m_data->end(); }
+
+			HOSTDEVICE const_iterator begin() const { return m_data->begin(); }
+			HOSTDEVICE const_iterator end() const { return m_data->end(); }
+
+
+		private:
+			pointer m_data = nullptr;
+			bool m_owner = true;
+		};
 	}
 }
