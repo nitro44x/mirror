@@ -8,6 +8,7 @@ set(cu_srcs kernels.cuh
 set(headers simt_vector.hpp
             simt_allocator.hpp
             simt_macros.hpp
+            simt_serialization.hpp
 )
 
 

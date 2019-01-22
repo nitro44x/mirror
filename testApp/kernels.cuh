@@ -16,3 +16,5 @@ void test12();
 void test13();
 void test14();
 void test15();
+void test16();
+void test17();

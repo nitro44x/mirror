@@ -1,6 +1,7 @@
 #include "simt_macros.hpp"
 #include "simt_allocator.hpp"
 #include "simt_vector.hpp"
+#include "simt_serialization.hpp"
 
 #include <vector>
 #include <numeric>
@@ -67,7 +68,7 @@ void test1() {
         std::cout << d << " ";
     std::cout << std::endl;
 
-    printArray << <1, 1 >> > (v.data(), v.size());
+    printArray<<<1, 1>>>(v.data(), v.size());
     simt_sync
         std::cout << std::endl;
 }
@@ -81,7 +82,7 @@ void test2() {
     for (auto const& d : simt_v)
         std::cout << d << " ";
     std::cout << std::endl;
-    printArray << <1, 1 >> > (simt_v.data(), simt_v.size());
+    printArray<<<1, 1>>>(simt_v.data(), simt_v.size());
     simt_sync
         std::cout << std::endl;
 }
@@ -95,7 +96,7 @@ void test3() {
         std::cout << d << " ";
     std::cout << std::endl;
     printVector(*simt_v_ptr);
-    call_printVector << <1, 1 >> > (*simt_v_ptr);
+    call_printVector<<<1, 1>>>(*simt_v_ptr);
     simt_sync
         delete simt_v_ptr;
     std::cout << std::endl;
@@ -110,7 +111,7 @@ void test3a() {
         std::cout << d << " ";
     std::cout << std::endl;
     printVector(*simt_v_ptr);
-    call_printVector_ref << <1, 1 >> > (*simt_v_ptr);
+    call_printVector_ref<<<1, 1>>>(*simt_v_ptr);
     simt_sync
         delete simt_v_ptr;
     std::cout << std::endl;
@@ -125,7 +126,7 @@ void test4() {
     for (auto const& d : *simt_v_ptr)
         std::cout << d << " ";
     std::cout << std::endl;
-    call_printVector << <1, 1 >> > (*simt_v_ptr);
+    call_printVector<<<1, 1>>>(*simt_v_ptr);
     simt_sync
         delete simt_v_ptr;
     simt_sync
@@ -136,13 +137,13 @@ void test5() {
     std::cout << "modify simt::containers::vector [object] on gpu" << std::endl;
     auto simt_v_ptr = new simt::containers::vector<double>;
     simt_v_ptr->resize(10);
-    call_setTo << <1, 1 >> > (*simt_v_ptr, 123);
+    call_setTo<<<1, 1>>>(*simt_v_ptr, 123);
     simt_sync
         std::cout << "cpu v = ";
     for (auto const& d : *simt_v_ptr)
         std::cout << d << " ";
     std::cout << std::endl;
-    call_printVector << <1, 1 >> > (*simt_v_ptr);
+    call_printVector<<<1, 1>>>(*simt_v_ptr);
     simt_sync
         delete simt_v_ptr;
     std::cout << std::endl;
@@ -157,7 +158,7 @@ void test6() {
     for (auto const& d : *simt_v_ptr)
         std::cout << d << " ";
     std::cout << std::endl;
-    call_printVector << <1, 1 >> > (*simt_v_ptr);
+    call_printVector<<<1, 1>>>(*simt_v_ptr);
     simt_sync
         delete simt_v_ptr;
     std::cout << std::endl;
@@ -292,7 +293,7 @@ template <typename T>
 HOST size_t getDeviceSize() {
     size_t * size = nullptr;
     cudaMallocManaged((void**)&size, sizeof(size_t));
-    compute_sizeof<T> << <1, 1 >> > (size);
+    compute_sizeof<T><<<1, 1>>>(size);
     simt_sync;
     auto const result = *size;
     cudaFree(size);
@@ -316,7 +317,7 @@ void test7() {
     auto const nBlocks = 128;
     auto const nThreadsPerBlock = 128;
     auto device_objs = new simt::containers::vector<A*>(encoded_objs->size(), nullptr);
-    allocateDeviceObjs << <nBlocks, nThreadsPerBlock >> > (*device_objs, *encoded_objs);
+    allocateDeviceObjs<<<nBlocks, nThreadsPerBlock>>>(*device_objs, *encoded_objs);
     simt_sync
         delete encoded_objs;
 
@@ -331,9 +332,9 @@ void test7() {
         return;
     }
 
-    sayHi << <nBlocks, nThreadsPerBlock >> > (*device_objs);
+    sayHi<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
     simt_sync
-        deallocateDeviceObjs << <nBlocks, nThreadsPerBlock >> > (*device_objs);
+        deallocateDeviceObjs<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
     simt_sync
 
         delete device_objs;
@@ -420,13 +421,13 @@ void test10() {
     for (size_t i = 0; i < encoded_objs->size(); ++i)
         cudaMallocManaged((void**)&(*device_objs)[i], (*encoded_objs)[i].type == ABC_t::B ? sizeofB : sizeofC);
 
-    constructDeviceObjs << <nBlocks, nThreadsPerBlock >> > (*device_objs, *encoded_objs);
+    constructDeviceObjs<<<nBlocks, nThreadsPerBlock>>>(*device_objs, *encoded_objs);
     simt_sync
 
 
-        sayHi << <nBlocks, nThreadsPerBlock >> > (*device_objs);
+        sayHi<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
     simt_sync
-        destructDeviceObjs << <nBlocks, nThreadsPerBlock >> > (*device_objs);
+        destructDeviceObjs<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
     simt_sync
 
 
@@ -507,14 +508,14 @@ void test11() {
     std::cout << "tank start = " << (void*)tankStart << std::endl;
     std::cout << "tank end   = " << (void*)tankEnd << std::endl;
 
-    constructDeviceObjs << <nBlocks, nThreadsPerBlock >> > (*device_objs, *encoded_objs);
+    constructDeviceObjs<<<nBlocks, nThreadsPerBlock>>>(*device_objs, *encoded_objs);
     simt_sync
 
-        for (size_t i = 0; i < 10000; ++i)
-            sayHi << <nBlocks, nThreadsPerBlock >> > (*device_objs);
+    for (size_t i = 0; i < 100; ++i)
+        sayHi<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
     std::cout << "Launched a bunch of sayHi's" << std::endl;
     simt_sync
-        destructDeviceObjs << <nBlocks, nThreadsPerBlock >> > (*device_objs);
+        destructDeviceObjs<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
     simt_sync
 
 
@@ -627,6 +628,7 @@ void test14() {
     test_copy_move_stuff<simt::containers::vector<int, std::allocator<int>, simt::memory::OverloadNewType::eManaged>>();
     test_copy_move_stuff<simt::containers::vector<int, std::allocator<int>, simt::memory::OverloadNewType::eHostOnly>>();
 }
+
 
 enum class BaseDerived {
     Base = 0,
@@ -775,32 +777,164 @@ public:
     simt::memory::MaybeOwner<simt::containers::vector<double>> v;
 };
 
-// From a vector of encodedObjs, construct a vector of the polymorphic type on the device
+
 void test15() {
     std::vector<Base*> host_objs;
     simt::memory::MaybeOwner<simt::containers::vector<double>> v1(new simt::containers::vector<double>(5, 1));
-    call_printVector << <1, 1 >> > (*v1);
+    call_printVector<<<1, 1>>>(*v1);
     simt_sync;
     simt::memory::MaybeOwner<simt::containers::vector<double>> v2(v1.get(), false);
-    call_printVector << <1, 1 >> > (*v2);
+    call_printVector<<<1, 1>>>(*v2);
     simt_sync;
     std::iota(v1->begin(), v1->end(), -10);
-    call_printVector << <1, 1 >> > (*v1);
+    call_printVector<<<1, 1>>>(*v1);
     simt_sync;
-    call_printVector << <1, 1 >> > (*v2);
+    call_printVector<<<1, 1>>>(*v2);
     simt_sync;
 
     simt::memory::MaybeOwner<simt::containers::vector<double>> v3(std::move(v1));
-    call_printVector << <1, 1 >> > (*v3);
+    call_printVector<<<1, 1>>>(*v3);
     simt_sync;
     auto v4 = std::move(v3);
-    call_printVector << <1, 1 >> > (*v4);
+    call_printVector<<<1, 1>>>(*v4);
     simt_sync;
-    call_printVector << <1, 1 >> > (*v2);
+    call_printVector<<<1, 1>>>(*v2);
     simt_sync;
 }
 
 void test16() {
+    simt::seralization::serializer io;
+    double in_d = 12.234;
+    std::cout << "in: " << in_d << std::endl;
+    io.write(in_d);
+
+    in_d = 21.999;
+    std::cout << "in: " << in_d << std::endl;
+    io.write(in_d);
+
+    int in_i = 5;
+    std::cout << "in: " << in_i << std::endl;
+    io.write(in_i);
+    
+    in_d = 1.532e32;
+    std::cout << "in: " << in_d << std::endl;
+    io.write(in_d);
+
+    double * in_dp = &in_d;
+    std::cout << "in: " << in_dp << std::endl;
+    io.write(in_dp);
+
+    char in_c = 'M';
+    std::cout << "in: " << in_c << std::endl;
+    io.write(in_c);
+
+    double out_d;
+    int out_i;
+    double * out_dp;
+    char out_c;
+
+    std::cout << std::endl;
+
+    io.read(&out_d);
+    std::cout << "out: " << out_d << std::endl;
+    io.read(&out_d);
+    std::cout << "out: " << out_d << std::endl;
+    io.read(&out_i);
+    std::cout << "out: " << out_i << std::endl;
+    io.read(&out_d);
+    std::cout << "out: " << out_d << std::endl;
+    io.read(&out_dp);
+    std::cout << "out: " << out_dp << std::endl;
+    io.read(&out_c);
+    std::cout << "out: " << out_c << std::endl;
+
+    std::cout << std::endl << "Read them again!" << std::endl;
+    io.seek(simt::seralization::Position::Beginning);
+    io.read(&out_d);
+    std::cout << "out: " << out_d << std::endl;
+    io.read(&out_d);
+    std::cout << "out: " << out_d << std::endl;
+    io.read(&out_i);
+    std::cout << "out: " << out_i << std::endl;
+    io.read(&out_d);
+    std::cout << "out: " << out_d << std::endl;
+    io.read(&out_dp);
+    std::cout << "out: " << out_dp << std::endl;
+    io.read(&out_c);
+    std::cout << "out: " << out_c << std::endl;
+}
+
+struct test17_a {
+    int i = -42;
+    char c = 'C';
+};
+
+struct test17_b {
+    double d = 123.321;
+    size_t s = 98765;
+    float3 f3 = { 4,3,2 };
+};
+
+void test17() {
+    simt::seralization::serializer io;
+    test17_a a;
+    double a_d_in = 998877.66;
+    test17_b b;
+    float4 b_f4_in = { 99, 88, 77, 66.123 };
+
+    std::cout << ":IN:" << std::endl << std::endl;
+    std::cout << "obj A:" << std::endl;
+    std::cout << "  test17_a: " << a.i << " \"" << a.c << "\"" << std::endl;
+    std::cout << "  a_d_in: " << a_d_in << std::endl;
+
+    std::cout << "obj B:" << std::endl;
+    std::cout << "  test17_b: " << b.d << " " << b.s << " "
+        << b.f3.x << " " << b.f3.y << " " << b.f3.z << std::endl;
+    std::cout << "  b_f4_in: " << b_f4_in.x << " " << b_f4_in.y << " " << b_f4_in.z << " " << b_f4_in.w << std::endl;
+
+    auto const objStart_a = io.mark();
+    io.write(a);
+    io.write(a_d_in);
+    auto const objStart_b = io.mark();
+    io.write(b);
+    io.write(b_f4_in);
+
+    memset(&a, 0, sizeof(a));
+    double a_d_out = 0;
+    memset(&b, 0, sizeof(b));
+    float4 b_f4_out = { 0, 0, 0, 0 };
+
+    std::cout << ":CLEAR:" << std::endl << std::endl;
+    std::cout << "obj A:" << std::endl;
+    std::cout << "  test17_a: " << a.i << " \"" << a.c << "\"" << std::endl;
+    std::cout << "  a_d_out: " << a_d_out << std::endl;
+
+    std::cout << "obj B:" << std::endl;
+    std::cout << "  test17_b: " << b.d << " " << b.s << " "
+        << b.f3.x << " " << b.f3.y << " " << b.f3.z << std::endl;
+    std::cout << "  b_f4_out: " << b_f4_out.x << " " << b_f4_out.y << " " << b_f4_out.z << " " << b_f4_out.w << std::endl;
+
+    auto start = io.mark_position(1);
+    io.read(start, &b);
+    io.read(start, &b_f4_out);
+
+    start = io.mark_position(0);
+    io.read(start, &a);
+    io.read(start, &a_d_out);
+
+    std::cout << ":OUT:" << std::endl << std::endl;
+    std::cout << "obj A:" << std::endl;
+    std::cout << "  test17_a: " << a.i << " \"" << a.c << "\"" << std::endl;
+    std::cout << "  a_d_out: " << a_d_out << std::endl;
+
+    std::cout << "obj B:" << std::endl;
+    std::cout << "  test17_b: " << b.d << " " << b.s << " "
+        << b.f3.x << " " << b.f3.y << " " << b.f3.z << std::endl;
+    std::cout << "  b_f4_out: " << b_f4_out.x << " " << b_f4_out.y << " " << b_f4_out.z << " " << b_f4_out.w << std::endl;
+}
+
+// From a vector of encodedObjs, construct a vector of the polymorphic type on the device
+void wip() {
     const auto N = 5;
     std::vector<Base*> host_objs;
     simt::memory::MaybeOwner<simt::containers::vector<encode_t>> encoded_objs(new simt::containers::vector<encode_t>);

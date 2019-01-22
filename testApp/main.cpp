@@ -74,5 +74,9 @@ int main() {
     // MaybeOwner
     RUN_TEST(test15);
 
+    // Serialization
+    RUN_TEST(test16);
+    RUN_TEST(test17);
+
     return 0;
 }

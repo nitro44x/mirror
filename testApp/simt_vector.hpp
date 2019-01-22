@@ -165,6 +165,16 @@ namespace simt {
                     m_size = nElements;
                 }
 
+                HOST void reserve(size_type nElements) {
+                    if (nElements > capacity()) {
+                        pointer tmp = m_alloc.allocate(nElements);
+                        internal_memcpy(tmp, m_data, size());
+                        m_alloc.deallocate(m_data, capacity());
+                        m_data = tmp;
+                        m_capacity = nElements;
+                    }
+                }
+
                 HOST void push_back(value_type value) {
                     auto const requiredCapcity = size() + 1;
                     if (requiredCapcity > capacity())

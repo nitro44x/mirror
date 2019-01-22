@@ -137,21 +137,21 @@ namespace simt {
         template <typename T>
         class MaybeOwner {
         public:
-            using value_type = T;
-            using pointer = T * ;
-            using const_pointer = const T*;
-            using reference = T & ;
-            using const_reference = const T&;
-            using size_type = std::size_t;
-            using difference_type = std::ptrdiff_t;
+            using value_type = T::value_type;
+            using pointer = T::pointer;
+            using const_pointer = T::const_pointer;
+            using reference = T::reference;
+            using const_reference = T::const_reference;
+            using size_type = T::size_type;
+            using difference_type = T::difference_type;
             using iterator = T::iterator;
-            using const_iterator = const iterator;
-            using reverse_iterator = std::reverse_iterator<iterator>;
-            using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+            using const_iterator = T::const_iterator;
+            using reverse_iterator = T::reverse_iterator;
+            using const_reverse_iterator = T::const_reverse_iterator;
 
         public:
             HOSTDEVICE MaybeOwner() { ; }
-            HOSTDEVICE MaybeOwner(pointer p, bool takeOwnership = true) : m_data(p), m_owner(takeOwnership) {}
+            HOSTDEVICE MaybeOwner(T* p, bool takeOwnership = true) : m_data(p), m_owner(takeOwnership) {}
 
             // This being HOST only might mean we are safe on the GPU side, but it would 
             // mean we are relaying on the destructor of T to be HOST only as well
@@ -178,7 +178,7 @@ namespace simt {
                 return *this;
             }
 
-            HOSTDEVICE pointer get() const {
+            HOSTDEVICE T* get() const {
                 return m_data;
             }
 
@@ -190,14 +190,16 @@ namespace simt {
                 return m_data->operator[](index);
             }
 
-            HOSTDEVICE reference operator*() {
+            HOSTDEVICE T& operator*() {
                 return *m_data;
             }
 
             HOSTDEVICE bool operator==(MaybeOwner const& other) { return other.m_data == m_data; }
             HOSTDEVICE bool operator!=(MaybeOwner const& other) { return !(*this == other); }
 
-            HOSTDEVICE pointer operator->() { return get(); }
+            HOSTDEVICE bool operator!() const { return m_data; }
+
+            HOSTDEVICE T* operator->() { return get(); }
 
             HOSTDEVICE iterator begin() { return m_data->begin(); }
             HOSTDEVICE iterator end() { return m_data->end(); }
@@ -207,7 +209,7 @@ namespace simt {
 
 
         private:
-            pointer m_data = nullptr;
+            T* m_data = nullptr;
             bool m_owner = true;
         };
     }
