@@ -77,6 +77,9 @@ int main() {
     // Serialization
     RUN_TEST(test16);
     RUN_TEST(test17);
+    RUN_TEST(test18);
+    RUN_TEST(test19);
+    RUN_TEST(test20);
 
     return 0;
 }

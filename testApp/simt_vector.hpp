@@ -113,8 +113,10 @@ namespace simt {
                     static_assert(std::is_trivially_copyable<_T>::value, "Cannot use non-trivial copyable encoded objects");
                 }
 
-                HOST ~vector() {
+                HOSTDEVICE ~vector() {
+                    #ifndef __CUDA_ARCH__
                     m_alloc.deallocate(m_data, m_size);
+                    #endif
                 }
 
                 HOST vector(vector const& other) : m_alloc(), m_data(m_alloc.allocate(other.m_size)), m_size(other.m_size), m_capacity(other.m_size) {

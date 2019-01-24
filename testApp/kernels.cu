@@ -17,6 +17,8 @@
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 
+#include <map>
+
 template <typename T>
 __global__ void printArray(T const* data, size_t size) {
     if (threadIdx.x == 0 && blockIdx.x == 0) {
@@ -264,8 +266,9 @@ void allocateDeviceObjs(simt::containers::vector<A*> & device_objs, simt::contai
     }
 }
 
+template<typename T>
 __global__
-void sayHi(simt::containers::vector<A*> & device_objs) {
+void sayHi(simt::containers::vector<T*> & device_objs) {
     auto tid = threadIdx.x + blockIdx.x * blockDim.x;
     for (; tid < device_objs.size(); tid += blockDim.x * gridDim.x) {
         //printf("Saying hi from an A* \n");
@@ -390,12 +393,13 @@ void constructDeviceObjs(simt::containers::vector<A*> & device_objs, simt::conta
     }
 }
 
+template <typename T>
 __global__
-void destructDeviceObjs(simt::containers::vector<A*> & device_objs) {
+void destructDeviceObjs(simt::containers::vector<T*> & device_objs) {
     auto tid = threadIdx.x + blockIdx.x * blockDim.x;
     for (; tid < device_objs.size(); tid += blockDim.x * gridDim.x) {
         //printf("Deallocating an A*\n");
-        device_objs[tid]->~A();
+        device_objs[tid]->~T();
     }
 }
 
@@ -629,157 +633,7 @@ void test14() {
     test_copy_move_stuff<simt::containers::vector<int, std::allocator<int>, simt::memory::OverloadNewType::eHostOnly>>();
 }
 
-
-enum class BaseDerived {
-    Base = 0,
-    Derived1,
-    Derived2,
-    Derived1_2,
-    Max_
-};
-
-struct encodeBase {};
-
-struct encodeDerived1 {
-    int i;
-};
-
-struct encodeDerived2 {
-    double d;
-};
-
-struct encodeDerived1_2 {
-    simt::containers::vector<double> * v;
-    encodeDerived1 derived1;
-};
-
-struct encode_t {
-
-    union {
-        encodeBase base;
-        encodeDerived1 d1;
-        encodeDerived2 d2;
-        encodeDerived1_2 d1_2;
-    } encoded_objs[static_cast<size_t>(BaseDerived::Max_)];
-};
-
-class Base {
-public:
-    HOST virtual ~Base() { ; }
-
-    HOSTDEVICE virtual void sayHi() = 0;
-
-    HOSTDEVICE virtual encode_t encode() const = 0;
-    HOSTDEVICE virtual void decode(encode_t e) = 0;
-    HOSTDEVICE virtual BaseDerived type() const {
-        return BaseDerived::Base;
-    }
-};
-
-class Derived1 : public Base {
-public:
-    HOSTDEVICE Derived1() { ; }
-    HOSTDEVICE Derived1(int j) : j(j) {}
-    HOSTDEVICE Derived1(encode_t e) : Derived1() { decode(e); }
-    HOST ~Derived1() override { ; }
-
-    HOSTDEVICE void sayHi() override {
-        printf("Hello from Derived1, j = %d\n", j);
-        ++j;
-    }
-
-    HOSTDEVICE virtual encode_t encode() const {
-        //return { BaseDerived::Derived1, 0, j };
-        return {};
-    }
-
-    HOSTDEVICE virtual void decode(encode_t e) {
-        // j = e.i;
-    }
-
-    HOSTDEVICE virtual BaseDerived type() const {
-        return BaseDerived::Derived1;
-    }
-
-    int j = 0;
-};
-
-class Derived2 : public Base {
-public:
-    HOSTDEVICE Derived2() { ; }
-    HOSTDEVICE Derived2(int j) : d(j) {}
-    HOSTDEVICE Derived2(encode_t e) : Derived2() { decode(e); }
-
-    HOST ~Derived2() override { ; }
-
-    HOSTDEVICE void sayHi() override {
-        printf("Hello from Derived2, d = %lf\n", d);
-        ++d;
-    }
-
-    HOSTDEVICE virtual encode_t encode() const {
-        //return { ABC_t::C, d, 0 };
-        return {};
-    }
-
-    HOSTDEVICE virtual void decode(encode_t e) {
-        //d = e.d;
-    }
-
-    HOSTDEVICE virtual BaseDerived type() const {
-        return BaseDerived::Derived2;
-    }
-
-    double d = 0;
-};
-
-class Derived1_2 : public Derived1 {
-public:
-    HOSTDEVICE Derived1_2() { ; }
-
-    HOST Derived1_2(size_t j, double s) : v(new simt::containers::vector<double>(j)) {
-        std::iota(v->begin(), v->end(), s);
-    }
-
-    HOSTDEVICE Derived1_2(encode_t e) : Derived1_2() { decode(e); }
-
-    HOST ~Derived1_2() override { ; }
-
-    HOSTDEVICE void sayHi() override {
-        printf("Hello from Derived1, ");
-        if (!v) {
-            printf("No Data ");
-        }
-        else {
-            printf("v = ");
-            for (auto & d : *v) {
-                printf("%lf ", d);
-                ++d;
-            }
-        }
-        printf(" :: From Derived1: ");
-        Derived1::sayHi();
-    }
-
-    HOSTDEVICE virtual encode_t encode() const {
-        //return { ABC_t::C, d, 0 };
-        return {};
-    }
-
-    HOSTDEVICE virtual void decode(encode_t e) {
-        //d = e.d;
-    }
-
-    HOSTDEVICE virtual BaseDerived type() const {
-        return BaseDerived::Derived1_2;
-    }
-
-    simt::memory::MaybeOwner<simt::containers::vector<double>> v;
-};
-
-
 void test15() {
-    std::vector<Base*> host_objs;
     simt::memory::MaybeOwner<simt::containers::vector<double>> v1(new simt::containers::vector<double>(5, 1));
     call_printVector<<<1, 1>>>(*v1);
     simt_sync;
@@ -933,24 +787,415 @@ void test17() {
     std::cout << "  b_f4_out: " << b_f4_out.x << " " << b_f4_out.y << " " << b_f4_out.z << " " << b_f4_out.w << std::endl;
 }
 
-// From a vector of encodedObjs, construct a vector of the polymorphic type on the device
-void wip() {
-    const auto N = 5;
-    std::vector<Base*> host_objs;
-    simt::memory::MaybeOwner<simt::containers::vector<encode_t>> encoded_objs(new simt::containers::vector<encode_t>);
-    for (auto i = 0; i < N; ++i) {
-        host_objs.push_back(new Derived1(i));
-        encoded_objs->push_back(host_objs.back()->encode());
 
-        host_objs.push_back(new Derived2(i));
-        encoded_objs->push_back(host_objs.back()->encode());
+struct alignas(32) test18_a {
+    double d;
+    size_t s;
+    float3 f3;
+};
 
-        host_objs.push_back(new Derived1_2(5, i));
-        encoded_objs->push_back(host_objs.back()->encode());
+struct alignas(32) test18_b {
+    int i;
+    char c;
+};
+
+__global__ void test18_kernel(simt::seralization::serializer const& io) {
+    auto const tid = threadIdx.x + blockIdx.x * blockDim.x;
+    if (tid == 0) {
+        test18_a a;
+        test18_b b;
+        double a_d_out;
+        float4 b_f4_out;
+
+        auto start = io.mark_position(1);
+        io.read(start, &b);
+        io.read(start, &b_f4_out);
+
+        start = io.mark_position(0);
+        io.read(start, &a);
+        io.read(start, &a_d_out);
+
+        printf(":OUT GPU side:\n");
+        printf("obj B: \n");
+        printf("  test18_b: %d %c\n", b.i, b.c);
+        printf("  b_f4_in: %f %f %f %f\n", b_f4_out.x, b_f4_out.y, b_f4_out.z, b_f4_out.w);
+
+        printf("obj A: \n");
+        printf("  test18_a: %lf %u %f %f %f\n", a.d, a.s, a.f3.x, a.f3.y, a.f3.z);
+        printf("  a_d_out: %lf\n", a_d_out);
+
+    }
+}
+
+void test18() {
+    auto io = new simt::seralization::serializer;
+    test18_a a;
+    a.d = 1.23;
+    a.s = 123;
+    a.f3 = { 1, 2, 3 };
+    double a_d_in = 998877.66;
+
+    test18_b b;
+    b.i = 9;
+    b.c = '?';
+    float4 b_f4_in = { 99, 88, 77, 66.123 };
+
+    std::cout << ":IN:" << std::endl << std::endl;
+    std::cout << "obj B:" << std::endl;
+    std::cout << "  test18_b: " << b.i << " \"" << b.c << "\"" << std::endl;
+    std::cout << "  b_f4_in: " << b_f4_in.x << " " << b_f4_in.y << " " << b_f4_in.z << " " << b_f4_in.w << std::endl;
+
+    std::cout << "obj A:" << std::endl;
+    std::cout << "  test18_a: " << a.d << " " << a.s << " "
+        << a.f3.x << " " << a.f3.y << " " << a.f3.z << std::endl;
+    std::cout << "  a_d_in: " << a_d_in << std::endl;
+
+    io->mark();
+    io->write(a);
+    io->write(a_d_in);
+    io->mark();
+    io->write(b);
+    io->write(b_f4_in);
+
+    test18_kernel<<<1,1>>>(*io);
+    simt_sync;
+    delete io;
+}
+
+#define TEST19_ABSTRACT_TYPES \
+        ENTRY(eBase, Base)
+
+#define TEST19_CONCRETE_TYPES \
+        ENTRY(eDerived1, Derived1) \
+        ENTRY(eDerived2, Derived2) \
+        ENTRY(eDerived1_2, Derived1_2) \
+
+#define TEST19_TYPES \
+        TEST19_ABSTRACT_TYPES \
+        TEST19_CONCRETE_TYPES
+
+enum class Test19Types {
+    //eBase = 0,
+    //eDerived1,
+    //eDerived2,
+    //eDerived1_2
+#define ENTRY(a, b) a,
+    TEST19_TYPES
+#undef ENTRY
+    Max_
+};
+
+class Base : public simt::seralization::Serializable<Test19Types> {
+public:
+    HOSTDEVICE virtual ~Base() { ; }
+
+    HOSTDEVICE virtual void sayHi() = 0;
+};
+
+HOSTDEVICE size_t getTID() {
+    #ifdef __CUDA_ARCH__
+    return threadIdx.x + blockIdx.x * blockDim.x;
+    #else
+    return 0;
+    #endif
+}
+
+class Derived1 : public Base {
+public:
+    HOSTDEVICE Derived1() { ; }
+    HOSTDEVICE Derived1(int j) : j(j) {}
+    HOSTDEVICE ~Derived1() override { ; }
+
+    HOSTDEVICE void sayHi() override {
+        printf("Hello from Derived1, j = %d\n", j);
+        ++j;
     }
 
-    using vector_of_Aptr = simt::containers::vector<Base*, simt::memory::device_allocator<Base*>>;
-    auto device_objs = new vector_of_Aptr(encoded_objs.get());
+    HOST void write(simt::seralization::serializer & io) const override {
+        printf("Writing in Derived1 %d\n", j);
+        io.write(j);
+    }
 
-    delete device_objs;
+    HOSTDEVICE void read(simt::seralization::serializer::size_type startPosition, 
+                         simt::seralization::serializer & io) override {
+        io.read(startPosition, &j);
+        printf("[%u] Reading in Derived1 %d\n", getTID(), j);
+    }
+
+    HOSTDEVICE type_id_t type() const override {
+        return Test19Types::eDerived1;
+    }
+
+private:
+    int j = 0;
+};
+
+class Derived2 : public Base {
+public:
+    HOSTDEVICE Derived2() { ; }
+    HOSTDEVICE Derived2(int j) : d(j) {}
+    HOSTDEVICE ~Derived2() override { ; }
+
+    HOSTDEVICE void sayHi() override {
+        printf("Hello from Derived2, d = %lf\n", d);
+        ++d;
+    }
+
+    HOST void write(simt::seralization::serializer & io) const override {
+        printf("Writing in Derived2 %lf\n", d);
+        io.write(d);
+    }
+
+    HOSTDEVICE void read(simt::seralization::serializer::size_type startPosition,
+        simt::seralization::serializer & io) override {
+        io.read(startPosition, &d);
+        printf("[%u] Reading in Derived2 %lf\n", getTID(), d);
+    }
+
+
+    HOSTDEVICE type_id_t type() const override {
+        return Test19Types::eDerived2;
+    }
+
+private:
+    double d = 0;
+};
+
+class Derived1_2 : public Derived1 {
+public:
+    HOSTDEVICE Derived1_2() { ; }
+
+    HOST Derived1_2(size_t j, double s) : Derived1(int(j)+1), v(new simt::containers::vector<double>(j)) {
+        std::iota(v->begin(), v->end(), s);
+    }
+
+    HOSTDEVICE ~Derived1_2() override { ; }
+
+    HOSTDEVICE void sayHi() override {
+        printf("Hello from Derived1_2:\n ");
+        if (!v) {
+            printf("  No Data");
+        }
+        else {
+            printf("  v = ");
+            for (auto & d : *v) {
+                printf("%lf ", d);
+                ++d;
+            }
+            printf("\n");
+        }
+        printf("SayHi in Derived1: \n,");
+        Derived1::sayHi();
+    }
+
+    HOST void write(simt::seralization::serializer & io) const override {
+        printf("Writing in Derived1_2 %p\n", v.get());
+        io.write(v.get());
+        Derived1::write(io);
+    }
+
+    HOSTDEVICE void read(simt::seralization::serializer::size_type startPosition,
+        simt::seralization::serializer & io) override {
+        simt::containers::vector<double> * p = nullptr;
+        io.read(startPosition, &p);
+        v.setData(p, false);
+        printf("[%u] Reading in Derived1_2 %p\n", getTID(), v.get());
+        Derived1::read(startPosition, io);
+    }
+
+    HOSTDEVICE type_id_t type() const override {
+        return Test19Types::eDerived1_2;
+    }
+
+
+private:
+    simt::memory::MaybeOwner<simt::containers::vector<double>> v;
+};
+
+template <Test19Types type>
+struct type_getter {};
+
+#define ENTRY(a, b) \
+template<> \
+struct type_getter<Test19Types::a> { \
+    using type = b; \
+};
+TEST19_TYPES
+#undef ENTRY
+
+
+
+HOST Base* create_obj_test19(size_t obj_idx, simt::seralization::serializer & io) {
+    auto startPosition = io.mark_position(obj_idx);
+    Test19Types type;
+    io.read(startPosition, &type);
+    Base * p = nullptr;
+    switch (type) {
+#define ENTRY(a, b) \
+    case Test19Types::a: \
+        p = new b; \
+        break;
+    TEST19_CONCRETE_TYPES
+#undef ENTRY
+#define ENTRY(a, b) \
+    case Test19Types::a:
+        TEST19_ABSTRACT_TYPES
+#undef ENTRY
+    default:
+        throw;
+    }
+
+    p->read(startPosition, io);
+    return p;
+}
+
+// From a vector of encodedObjs, construct a vector of the polymorphic type on the device
+void test19() {
+    const auto N = 5;
+    std::vector<Base*> host_objs;
+    for (auto i = 0; i < N; ++i) {
+        host_objs.push_back(new Derived1(i));
+        host_objs.push_back(new Derived2(i));
+        host_objs.push_back(new Derived1_2(5, i));
+    }
+
+    simt::seralization::serializer io;
+    for (auto obj : host_objs) {
+        io.mark();
+        io.write(obj->type());
+        obj->write(io);
+    }
+
+    std::vector<Base*> new_host_objs;
+    for (size_t i = 0; i < io.number_of_marks(); ++i) {
+        auto p = create_obj_test19(i, io);
+        new_host_objs.push_back(p);
+    }
+
+    for (auto p : new_host_objs) {
+        delete p;
+    }
+
+    for (auto p : host_objs) {
+        delete p;
+    }
+}
+
+template <typename BaseClass>
+struct polymorphic_traits {
+    using size_type = std::size_t;
+    using pointer = BaseClass*;
+
+    static HOST size_type sizeOf(pointer p) {
+        switch(p->type()) {
+#define ENTRY(a, b) \
+        case Test19Types::a: \
+            return getDeviceSize<type_getter<Test19Types::a>::type>();
+        TEST19_CONCRETE_TYPES
+#undef ENTRY
+        case Test19Types::Max_:
+        default:
+            throw;
+        }
+    }
+};
+
+__global__
+void constructDeviceTest19Objs(simt::containers::vector<Base*> & device_objs, simt::seralization::serializer & io) {
+    auto tid = threadIdx.x + blockIdx.x * blockDim.x;
+
+    for (; tid < device_objs.size(); tid += blockDim.x * gridDim.x) {
+        auto startPosition = io.mark_position(tid);
+        Test19Types type;
+        io.read(startPosition, &type);
+
+        switch (type) {
+
+#define ENTRY(a, b) \
+        case Test19Types::a: \
+            new(device_objs[tid]) b; \
+            device_objs[tid]->read(startPosition, io); \
+            break;
+            TEST19_CONCRETE_TYPES
+#undef ENTRY
+
+        default:
+            printf("Error allocating object!\n");
+        }
+
+        if (nullptr == device_objs[tid])
+            printf("failed allocation at tid = %u\n", tid);
+    }
+}
+
+void test20() {
+    const auto N = 2;
+    std::vector<Base*> host_objs;
+    for (auto i = 0; i < N; ++i) {
+        host_objs.push_back(new Derived1(i));
+        host_objs.push_back(new Derived2(i));
+        host_objs.push_back(new Derived1_2(5, i));
+    }
+
+    simt::memory::MaybeOwner<simt::seralization::serializer> io(new simt::seralization::serializer);
+
+    for (auto obj : host_objs) {
+        io->mark();
+        io->write(obj->type());
+        obj->write(*io);
+    }
+
+    std::vector<Base*> new_host_objs;
+    for (size_t i = 0; i < io->number_of_marks(); ++i) {
+        auto p = create_obj_test19(i, *io);
+        new_host_objs.push_back(p);
+    }
+
+    auto sizeofFold = [](size_t currentTotal, Base * p) {
+        return currentTotal + polymorphic_traits<Base>::sizeOf(p);
+    };
+
+    auto totalSpaceNeeded_bytes = std::accumulate(host_objs.begin(), host_objs.end(), size_t(0), sizeofFold);
+
+    auto tank = new simt::containers::vector<char, simt::memory::device_allocator<char>, simt::memory::OverloadNewType::eHostOnly>(totalSpaceNeeded_bytes, '\0');
+
+    std::cout << "               Tank setup" << std::endl;
+    std::cout << "--------------------------" << std::endl;
+
+    simt::memory::MaybeOwner<simt::containers::vector<Base*>> device_objs(new simt::containers::vector<Base*>(host_objs.size(), nullptr));
+    size_t offset = 0;
+    for (size_t i = 0; i < host_objs.size(); ++i) {
+
+        (*device_objs)[i] = (Base*)(tank->data() + offset);
+
+        switch (host_objs[i]->type()) {
+#define ENTRY(a, b) \
+        case Test19Types::a: \
+            offset += getDeviceSize<type_getter<Test19Types::a>::type>(); \
+            break;
+            TEST19_CONCRETE_TYPES
+#undef ENTRY
+        default:
+            assert(false);
+        }
+    }
+
+    auto const nBlocks = 128;
+    auto const nThreadsPerBlock = 128;
+    constructDeviceTest19Objs<<<nBlocks, nThreadsPerBlock>>>(*device_objs, *io);
+    simt_sync
+
+    sayHi<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
+    simt_sync
+
+    destructDeviceObjs<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
+    simt_sync
+
+    for (auto p : new_host_objs) {
+        delete p;
+    }
+
+    for (auto p : host_objs) {
+        delete p;
+    }
 }

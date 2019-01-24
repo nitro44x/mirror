@@ -23,3 +23,4 @@ void assert_(cudaError_t code, const char *file, int line) {
 #define HOST
 #define DEVICE
 #endif
+

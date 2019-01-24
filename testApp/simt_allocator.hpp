@@ -30,15 +30,22 @@ namespace simt {
 
             template <class U> constexpr managed_allocator(const managed_allocator<U>&) noexcept {}
 
-            HOST T* allocate(std::size_t n) {
+            HOSTDEVICE T* allocate(std::size_t n) {
+                #ifndef __CUDA_ARCH__
                 void* out = nullptr;
                 simt_check(cudaMallocManaged(&out, n * sizeof(T)));
                 memset(out, 0, n * sizeof(T));
                 return static_cast<T*>(out);
+                #else
+                return nullptr;
+                #endif
+
             }
 
-            HOST void deallocate(T* p, std::size_t) noexcept {
+            HOSTDEVICE void deallocate(T* p, std::size_t) noexcept {
+                #ifndef __CUDA_ARCH__
                 simt_check(cudaFree(p));
+                #endif
             }
 
         };
@@ -59,15 +66,21 @@ namespace simt {
 
             template <class U> constexpr device_allocator(const device_allocator<U>&) noexcept {}
 
-            HOST T* allocate(std::size_t n) {
+            HOSTDEVICE T* allocate(std::size_t n) {
+                #ifndef __CUDA_ARCH__
                 void* out = nullptr;
                 simt_check(cudaMalloc(&out, n * sizeof(T)));
                 simt_check(cudaMemset(out, 0, n * sizeof(T)));
                 return static_cast<T*>(out);
+                #else
+                return nullptr;
+                #endif      
             }
 
-            HOST void deallocate(T* p, std::size_t) noexcept {
+            HOSTDEVICE void deallocate(T* p, std::size_t) noexcept {
+                #ifndef __CUDA_ARCH__
                 simt_check(cudaFree(p));
+                #endif          
             }
 
         };
@@ -155,9 +168,11 @@ namespace simt {
 
             // This being HOST only might mean we are safe on the GPU side, but it would 
             // mean we are relaying on the destructor of T to be HOST only as well
-            HOST ~MaybeOwner() {
+            HOSTDEVICE ~MaybeOwner() {
+                #ifndef __CUDA_ARCH__
                 if (m_owner && m_data)
                     delete m_data;
+                #endif
             }
 
             HOSTDEVICE MaybeOwner(MaybeOwner const&) = delete;
@@ -197,15 +212,24 @@ namespace simt {
             HOSTDEVICE bool operator==(MaybeOwner const& other) { return other.m_data == m_data; }
             HOSTDEVICE bool operator!=(MaybeOwner const& other) { return !(*this == other); }
 
-            HOSTDEVICE bool operator!() const { return m_data; }
+            HOSTDEVICE bool operator!() const { return !m_data; }
 
             HOSTDEVICE T* operator->() { return get(); }
+            HOSTDEVICE T* operator->() const { return get(); }
 
             HOSTDEVICE iterator begin() { return m_data->begin(); }
             HOSTDEVICE iterator end() { return m_data->end(); }
 
             HOSTDEVICE const_iterator begin() const { return m_data->begin(); }
             HOSTDEVICE const_iterator end() const { return m_data->end(); }
+
+            HOSTDEVICE bool setData(T* data, bool takeOwnership = true) {
+                if (m_data && m_owner)
+                    return false;
+                m_data = data;
+                m_owner = takeOwnership;
+                return true;
+            }
 
 
         private:
