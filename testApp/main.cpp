@@ -1,4 +1,5 @@
 #include "kernels.cuh"
+#include "kernels2.hpp"
 
 #include <cuda_runtime.h>
 
@@ -81,6 +82,7 @@ int main() {
     RUN_TEST(test19);
     RUN_TEST(test20);
     RUN_TEST(test21);
+    RUN_TEST(simple_polymorphic_test);
 
     return 0;
 }

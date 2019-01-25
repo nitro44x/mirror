@@ -9,25 +9,6 @@
 namespace simt {
     namespace seralization {
 
-        template <typename T>
-        __global__ void compute_sizeof(size_t * size) {
-            auto tid = threadIdx.x + blockIdx.x * blockDim.x;
-            if (tid == 0)
-                *size = sizeof(T);
-        }
-
-        template <typename T>
-        HOST size_t determineSizeOf() {
-            size_t * tmp = nullptr;
-            cudaMallocManaged((void**)&tmp, sizeof(size_t));
-            compute_sizeof<T><<<1, 1>>>(tmp);
-            simt_sync;
-            auto const deviceSizeOf = *tmp;
-            cudaFree(size);
-            auto const hostSizeOf = sizeof(T);
-            return hostSizeOf > deviceSizeOf ? hostSizeOf : deviceSizeOf;
-        }
-
         enum class Position {
             Beginning,
             End
@@ -131,14 +112,18 @@ namespace simt {
             HOSTDEVICE virtual type_id_t type() const = 0;
         };
 
+        template<typename BaseClass> struct force_specialization : public std::false_type {};
+
         template <typename BaseClass>
         struct polymorphic_traits {
             using size_type = std::size_t;
             using pointer = BaseClass*;
             using type = BaseClass;
 
+            static_assert(force_specialization<BaseClass>::value, "Must provide polymorphic_traits");
 
-            static HOST size_type sizeOf(pointer p) {}
+            static HOST size_type sizeOf(pointer p) { return 0; }
+
             static HOSTDEVICE void create(simt::containers::vector<BaseClass*> & device_objs, simt::seralization::serializer & io) {}
         };
 

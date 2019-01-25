@@ -2,6 +2,7 @@
 #include "simt_allocator.hpp"
 #include "simt_vector.hpp"
 #include "simt_serialization.hpp"
+#include "simt_utilities.hpp"
 
 #include <vector>
 #include <numeric>
@@ -296,24 +297,6 @@ void deallocateDeviceObjs(simt::containers::vector<A*> & device_objs) {
     }
 }
 
-template <typename T>
-__global__ void compute_sizeof(size_t * size) {
-    auto tid = threadIdx.x + blockIdx.x * blockDim.x;
-    if (tid == 0)
-        *size = sizeof(T);
-}
-
-template <typename T>
-HOST size_t getDeviceSize() {
-    size_t * size = nullptr;
-    cudaMallocManaged((void**)&size, sizeof(size_t));
-    compute_sizeof<T><<<1, 1>>>(size);
-    simt_sync;
-    auto const result = *size;
-    cudaFree(size);
-    return result;
-}
-
 void test7() {
     const auto N = 10;
     std::vector<A*> host_objs;
@@ -371,11 +354,11 @@ void test8() {
 
 void test9() {
     std::cout << "cpu sizeof(A) = " << sizeof(A) << std::endl;
-    std::cout << "gpu sizeof(A) = " << getDeviceSize<A>() << std::endl;
+    std::cout << "gpu sizeof(A) = " << simt::utilities::getDeviceSize<A>() << std::endl;
     std::cout << "cpu sizeof(B) = " << sizeof(B) << std::endl;
-    std::cout << "gpu sizeof(B) = " << getDeviceSize<B>() << std::endl;
+    std::cout << "gpu sizeof(B) = " << simt::utilities::getDeviceSize<B>() << std::endl;
     std::cout << "cpu sizeof(C) = " << sizeof(C) << std::endl;
-    std::cout << "gpu sizeof(C) = " << getDeviceSize<C>() << std::endl;
+    std::cout << "gpu sizeof(C) = " << simt::utilities::getDeviceSize<C>() << std::endl;
 }
 
 __global__
@@ -431,8 +414,8 @@ void test10() {
     auto const nBlocks = 128;
     auto const nThreadsPerBlock = 128;
     auto device_objs = new simt::containers::vector<A*>(encoded_objs->size(), nullptr);
-    auto const sizeofB = getDeviceSize<B>();
-    auto const sizeofC = getDeviceSize<C>();
+    auto const sizeofB = simt::utilities::getDeviceSize<B>();
+    auto const sizeofC = simt::utilities::getDeviceSize<C>();
     for (size_t i = 0; i < encoded_objs->size(); ++i)
         cudaMallocManaged((void**)&(*device_objs)[i], (*encoded_objs)[i].type == ABC_t::B ? sizeofB : sizeofC);
 
@@ -472,8 +455,8 @@ void test11() {
     auto const nBlocks = 128;
     auto const nThreadsPerBlock = 128;
     auto device_objs = new simt::containers::vector<A*>(encoded_objs->size(), nullptr);
-    auto const sizeofB = getDeviceSize<B>();
-    auto const sizeofC = getDeviceSize<C>();
+    auto const sizeofB = simt::utilities::getDeviceSize<B>();
+    auto const sizeofC = simt::utilities::getDeviceSize<C>();
 
     auto sizeofFold = [sizeofB, sizeofC](size_t currentTotal, encodedObj const& e) {
         switch (e.type) {
@@ -903,14 +886,6 @@ public:
     HOSTDEVICE virtual void sayHi() = 0;
 };
 
-HOSTDEVICE int getTID() {
-    #ifdef __CUDA_ARCH__
-    return (int) (threadIdx.x + blockIdx.x * blockDim.x);
-    #else
-    return 0;
-    #endif
-}
-
 class Derived1 : public Base {
 public:
     HOSTDEVICE Derived1() { ; }
@@ -930,7 +905,7 @@ public:
     HOSTDEVICE void read(simt::seralization::serializer::size_type startPosition, 
                          simt::seralization::serializer & io) override {
         io.read(startPosition, &j);
-        printf("[%u] Reading in Derived1 %d\n", getTID(), j);
+        printf("[%u] Reading in Derived1 %d\n", simt::utilities::getTID(), j);
     }
 
     HOSTDEVICE type_id_t type() const override {
@@ -960,7 +935,7 @@ public:
     HOSTDEVICE void read(simt::seralization::serializer::size_type startPosition,
         simt::seralization::serializer & io) override {
         io.read(startPosition, &d);
-        printf("[%u] Reading in Derived2 %lf\n", getTID(), d);
+        printf("[%u] Reading in Derived2 %lf\n", simt::utilities::getTID(), d);
     }
 
 
@@ -1010,7 +985,7 @@ public:
         simt::containers::vector<double> * p = nullptr;
         io.read(startPosition, &p);
         v.setData(p, false);
-        printf("[%u] Reading in Derived1_2 %p\n", getTID(), v.get());
+        printf("[%u] Reading in Derived1_2 %p\n", simt::utilities::getTID(), v.get());
         Derived1::read(startPosition, io);
     }
 
@@ -1107,7 +1082,7 @@ struct simt::seralization::polymorphic_traits<Base> {
         switch(p->type()) {
 #define ENTRY(a, b) \
         case Test19Types::a: \
-            cache[Test19Types::a] = getDeviceSize<type_getter<Test19Types::a>::type>(); \
+            cache[Test19Types::a] = simt::utilities::getDeviceSize<type_getter<Test19Types::a>::type>(); \
             return cache[Test19Types::a];
         TEST19_CONCRETE_TYPES
 #undef ENTRY
@@ -1197,7 +1172,7 @@ void test20() {
         switch (host_objs[i]->type()) {
 #define ENTRY(a, b) \
         case Test19Types::a: \
-            offset += getDeviceSize<type_getter<Test19Types::a>::type>(); \
+            offset += simt::utilities::getDeviceSize<type_getter<Test19Types::a>::type>(); \
             break;
             TEST19_CONCRETE_TYPES
 #undef ENTRY
@@ -1227,7 +1202,7 @@ void test20() {
 }
 
 void test21() {
-    const auto N = 20000;
+    const auto N = 20;
     std::vector<Base*> host_objs;
     for (auto i = 0; i < N; ++i) {
         host_objs.push_back(new Derived1(i));
