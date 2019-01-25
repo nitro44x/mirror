@@ -1009,8 +1009,6 @@ struct type_getter<Test19Types::a> { \
 TEST19_TYPES
 #undef ENTRY
 
-
-
 HOST Base* create_obj_test19(size_t obj_idx, simt::seralization::serializer & io) {
     auto startPosition = io.mark_position(obj_idx);
     Test19Types type;
@@ -1071,6 +1069,7 @@ template <>
 struct simt::seralization::polymorphic_traits<Base> {
     using size_type = std::size_t;
     using pointer = Base*;
+    using enum_type = Test19Types;
 
     static std::map<Test19Types, size_t> cache;
 

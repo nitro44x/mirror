@@ -17,13 +17,13 @@
         ENTRY(eSimpleDerived2, SimpleDerived2) \
         ENTRY(eSimpleDerived1_2, SimpleDerived1_2) \
 
-#define SIMPLE_TYPES \
+#define ALL_SIMPLE_TYPES \
         SIMPLE_ABSTRACT_TYPES \
         SIMPLE_CONCRETE_TYPES
 
 enum SimpleTypes {
 #define ENTRY(a, b) a,
-    SIMPLE_TYPES
+    ALL_SIMPLE_TYPES
 #undef ENTRY
     Max_
 };
@@ -147,24 +147,13 @@ private:
     simt::memory::MaybeOwner<simt::containers::vector<double>> v;
 };
 
-
-template <SimpleTypes type>
-struct type_getter {};
-
-#define ENTRY(a, b) \
-template<> \
-struct type_getter<SimpleTypes::a> { \
-    using type = b; \
-};
-SIMPLE_TYPES
-#undef ENTRY
-
 template <>
 struct simt::seralization::polymorphic_traits<SimpleBase> {
     using size_type = std::size_t;
     using pointer = SimpleBase * ;
+    using enum_type = SimpleTypes;
 
-    static size_t cache[SimpleTypes::Max_];
+    static size_t cache[enum_type::Max_];
 
     static HOST size_type sizeOf(pointer p) {
         if (cache[p->type()])
@@ -172,30 +161,30 @@ struct simt::seralization::polymorphic_traits<SimpleBase> {
 
         switch (p->type()) {
         #define ENTRY(a, b) \
-        case SimpleTypes::a: \
-            cache[SimpleTypes::a] = simt::utilities::getDeviceSize<type_getter<SimpleTypes::a>::type>(); \
-            return cache[SimpleTypes::a];
-            SIMPLE_CONCRETE_TYPES
+        case enum_type::a: \
+            cache[enum_type::a] = simt::utilities::getDeviceSize<b>(); \
+            return cache[enum_type::a];
+            ALL_SIMPLE_TYPES
         #undef ENTRY
-        case SimpleTypes::Max_:
+        case enum_type::Max_:
         default:
             throw;
         }
     }
 
-    static HOSTDEVICE void create(simt::containers::vector<SimpleBase*> & device_objs, simt::seralization::serializer & io) {
+    static HOSTDEVICE void create(simt::containers::vector<pointer> & device_objs, simt::seralization::serializer & io) {
         auto tid = simt::utilities::getTID();
 
         for (; tid < device_objs.size(); tid += blockDim.x * gridDim.x) {
             auto startPosition = io.mark_position(tid);
-            SimpleTypes type;
+            enum_type type;
             io.read(startPosition, &type);
 
             switch (type) {
 
             #define ENTRY(a, b) \
-            case SimpleTypes::a: \
-                new(device_objs[tid]) b; \
+            case enum_type::a: \
+                simt::seralization::construct_obj<b>(device_objs[tid]); \
                 break;
                     SIMPLE_CONCRETE_TYPES
             #undef ENTRY
@@ -212,7 +201,7 @@ struct simt::seralization::polymorphic_traits<SimpleBase> {
     }
 };
 
-size_t simt::seralization::polymorphic_traits<SimpleBase>::cache[SimpleTypes::Max_];
+size_t simt::seralization::polymorphic_traits<SimpleBase>::cache[enum_type::Max_];
 
 
 template<typename T>

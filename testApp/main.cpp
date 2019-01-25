@@ -37,12 +37,6 @@ int main() {
     if (count == 0) {
         return 1;
     }
-    //const size_t heapSpaceMB = 2*1024;
-    //cudaDeviceSetLimit(cudaLimitMallocHeapSize, 1024 * 1024 * heapSpaceMB);
-
-    size_t heapSize_bytes;
-    cudaDeviceGetLimit(&heapSize_bytes, cudaLimitMallocHeapSize);
-    std::cout << "Heap size in bytes = " << heapSize_bytes << std::endl;
 
     // Print vector tests
     RUN_TEST(test1);

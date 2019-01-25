@@ -35,11 +35,12 @@ namespace simt {
             using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
         public:
-            HOST serializer() : m_data(new buffer_t), m_currentIndex(0), m_objIndices(new indices_t) {
-                m_data->reserve(1024);
+            HOST serializer() : m_data(new buffer_t), m_currentIndex(0), m_objIndices(new indices_t) {}
+
+            HOST serializer(size_t startingBufferSize) : serializer() {
+                m_data->reserve(startingBufferSize);
             }
 
-            // todo: get max device/host sizeof and push [size|data w/ max size]
             template <typename T>
             HOST void write(T const value) {
                 char arr[sizeof(T)];
@@ -49,7 +50,6 @@ namespace simt {
                 m_currentIndex += sizeof(T);
             }
 
-            // todo: readin [size | data ]
             template <typename T>
             HOSTDEVICE void read(T* value) {
                 char arr[sizeof(T)];
@@ -59,7 +59,6 @@ namespace simt {
                 memcpy(value, arr, sizeof(T));
             }
 
-            // todo: readin [size | data ]
             template <typename T>
             HOSTDEVICE void read(size_type & startingPosition, T* value) const {
                 char arr[sizeof(T)];
@@ -143,6 +142,11 @@ namespace simt {
         }
 
         template <typename T>
+        HOSTDEVICE void construct_obj(void* where) {
+            new(where) T;
+        }
+
+        template <typename T, size_t startingBufferSize = 1024 * 1024>
         class polymorphic_mirror final {
         public:
             using pointer = T*;
@@ -160,11 +164,11 @@ namespace simt {
             using reverse_iterator = array_type::reverse_iterator;
             using const_reverse_iterator = array_type::const_reverse_iterator;
 
-            //static_assert(std::is_base_of<Serializable, BaseClass>::value, "Object must inherit from simt::serialization::Serializable");
+            static_assert(std::is_base_of<Serializable<polymorphic_traits<T>::enum_type>, T>::value, "Object must inherit from simt::serialization::Serializable");
 
         public:
             HOST polymorphic_mirror(std::vector<pointer> const& host_objs) : m_deviceObjs(new simt::containers::vector<pointer>(host_objs.size(), nullptr)) {
-                simt::memory::MaybeOwner<simt::seralization::serializer> io(new simt::seralization::serializer);
+                simt::memory::MaybeOwner<serializer> io(new serializer(startingBufferSize));
 
                 for (auto obj : host_objs) {
                     io->mark();
