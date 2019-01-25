@@ -80,6 +80,7 @@ int main() {
     RUN_TEST(test18);
     RUN_TEST(test19);
     RUN_TEST(test20);
+    RUN_TEST(test21);
 
     return 0;
 }

@@ -6,6 +6,7 @@
 #include <vector>
 #include <numeric>
 #include <string>
+#include <map>
 
 #include <iostream>
 #include <stdio.h>
@@ -276,6 +277,16 @@ void sayHi(simt::containers::vector<T*> & device_objs) {
     }
 }
 
+template<typename T>
+__global__
+void sayHi_poly(simt::seralization::polymorphic_mirror<T> & device_objs) {
+    auto tid = threadIdx.x + blockIdx.x * blockDim.x;
+    for (; tid < device_objs.size(); tid += blockDim.x * gridDim.x) {
+        //printf("Saying hi from an A* \n");
+        device_objs[tid]->sayHi();
+    }
+}
+
 __global__
 void deallocateDeviceObjs(simt::containers::vector<A*> & device_objs) {
     auto tid = threadIdx.x + blockIdx.x * blockDim.x;
@@ -395,7 +406,7 @@ void constructDeviceObjs(simt::containers::vector<A*> & device_objs, simt::conta
 
 template <typename T>
 __global__
-void destructDeviceObjs(simt::containers::vector<T*> & device_objs) {
+void destructDeviceObjs_test(simt::containers::vector<T*> & device_objs) {
     auto tid = threadIdx.x + blockIdx.x * blockDim.x;
     for (; tid < device_objs.size(); tid += blockDim.x * gridDim.x) {
         //printf("Deallocating an A*\n");
@@ -431,7 +442,7 @@ void test10() {
 
         sayHi<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
     simt_sync
-        destructDeviceObjs<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
+        destructDeviceObjs_test<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
     simt_sync
 
 
@@ -519,7 +530,7 @@ void test11() {
         sayHi<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
     std::cout << "Launched a bunch of sayHi's" << std::endl;
     simt_sync
-        destructDeviceObjs<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
+        destructDeviceObjs_test<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
     simt_sync
 
 
@@ -892,9 +903,9 @@ public:
     HOSTDEVICE virtual void sayHi() = 0;
 };
 
-HOSTDEVICE size_t getTID() {
+HOSTDEVICE int getTID() {
     #ifdef __CUDA_ARCH__
-    return threadIdx.x + blockIdx.x * blockDim.x;
+    return (int) (threadIdx.x + blockIdx.x * blockDim.x);
     #else
     return 0;
     #endif
@@ -1081,16 +1092,23 @@ void test19() {
     }
 }
 
-template <typename BaseClass>
-struct polymorphic_traits {
+template <>
+struct simt::seralization::polymorphic_traits<Base> {
     using size_type = std::size_t;
-    using pointer = BaseClass*;
+    using pointer = Base*;
+
+    static std::map<Test19Types, size_t> cache;
 
     static HOST size_type sizeOf(pointer p) {
+        auto const res = cache.find(p->type());
+        if (res != end(cache))
+            return res->second;
+
         switch(p->type()) {
 #define ENTRY(a, b) \
         case Test19Types::a: \
-            return getDeviceSize<type_getter<Test19Types::a>::type>();
+            cache[Test19Types::a] = getDeviceSize<type_getter<Test19Types::a>::type>(); \
+            return cache[Test19Types::a];
         TEST19_CONCRETE_TYPES
 #undef ENTRY
         case Test19Types::Max_:
@@ -1098,34 +1116,42 @@ struct polymorphic_traits {
             throw;
         }
     }
-};
 
-__global__
-void constructDeviceTest19Objs(simt::containers::vector<Base*> & device_objs, simt::seralization::serializer & io) {
-    auto tid = threadIdx.x + blockIdx.x * blockDim.x;
+    static HOSTDEVICE void create(simt::containers::vector<Base*> & device_objs, simt::seralization::serializer & io) {
+        auto tid = threadIdx.x + blockIdx.x * blockDim.x;
 
-    for (; tid < device_objs.size(); tid += blockDim.x * gridDim.x) {
-        auto startPosition = io.mark_position(tid);
-        Test19Types type;
-        io.read(startPosition, &type);
+        for (; tid < device_objs.size(); tid += blockDim.x * gridDim.x) {
+            auto startPosition = io.mark_position(tid);
+            Test19Types type;
+            io.read(startPosition, &type);
 
-        switch (type) {
+            switch (type) {
 
-#define ENTRY(a, b) \
+        #define ENTRY(a, b) \
         case Test19Types::a: \
             new(device_objs[tid]) b; \
             device_objs[tid]->read(startPosition, io); \
             break;
-            TEST19_CONCRETE_TYPES
-#undef ENTRY
+                TEST19_CONCRETE_TYPES
+        #undef ENTRY
 
-        default:
-            printf("Error allocating object!\n");
+            default:
+                printf("Error allocating object!\n");
+            }
+
+            if (nullptr == device_objs[tid])
+                printf("failed allocation at tid = %u\n", tid);
         }
-
-        if (nullptr == device_objs[tid])
-            printf("failed allocation at tid = %u\n", tid);
     }
+};
+
+std::map<Test19Types, size_t> simt::seralization::polymorphic_traits<Base>::cache{};
+
+
+template <typename BaseClass>
+__global__
+void constructDeviceTest19Objs(simt::containers::vector<BaseClass*> & device_objs, simt::seralization::serializer & io) {
+    simt::seralization::polymorphic_traits<BaseClass>::create(device_objs, io);
 }
 
 void test20() {
@@ -1152,7 +1178,7 @@ void test20() {
     }
 
     auto sizeofFold = [](size_t currentTotal, Base * p) {
-        return currentTotal + polymorphic_traits<Base>::sizeOf(p);
+        return currentTotal + simt::seralization::polymorphic_traits<Base>::sizeOf(p);
     };
 
     auto totalSpaceNeeded_bytes = std::accumulate(host_objs.begin(), host_objs.end(), size_t(0), sizeofFold);
@@ -1188,7 +1214,7 @@ void test20() {
     sayHi<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
     simt_sync
 
-    destructDeviceObjs<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
+    destructDeviceObjs_test<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
     simt_sync
 
     for (auto p : new_host_objs) {
@@ -1198,4 +1224,21 @@ void test20() {
     for (auto p : host_objs) {
         delete p;
     }
+}
+
+void test21() {
+    const auto N = 20000;
+    std::vector<Base*> host_objs;
+    for (auto i = 0; i < N; ++i) {
+        host_objs.push_back(new Derived1(i));
+        host_objs.push_back(new Derived2(i));
+        host_objs.push_back(new Derived1_2(5, i));
+    }
+
+    simt::seralization::polymorphic_mirror<Base> device_objs(host_objs);
+
+    auto const nBlocks = 128;
+    auto const nThreadsPerBlock = 128;
+    sayHi<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
+    simt_sync;
 }

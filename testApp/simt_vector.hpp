@@ -3,9 +3,11 @@
 #include "simt_macros.hpp"
 #include "simt_allocator.hpp"
 
+
 #include <algorithm>
 
 namespace simt {
+
     namespace containers {
 
         template <typename T>
@@ -104,13 +106,6 @@ namespace simt {
                         for (size_type i = 0; i < nElements; ++i)
                             m_data[i] = initValue;
                     }
-                }
-
-                template<typename _T,
-                    typename _Alloc,
-                    simt::memory::OverloadNewType _New_t>
-                    HOST vector(vector<_T, _Alloc, _New_t> * encodedObjs) {
-                    static_assert(std::is_trivially_copyable<_T>::value, "Cannot use non-trivial copyable encoded objects");
                 }
 
                 HOSTDEVICE ~vector() {

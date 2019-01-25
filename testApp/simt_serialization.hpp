@@ -3,6 +3,9 @@
 #include "simt_allocator.hpp"
 #include "simt_vector.hpp"
 
+#include <vector>
+#include <numeric>
+
 namespace simt {
     namespace seralization {
 
@@ -128,5 +131,123 @@ namespace simt {
             HOSTDEVICE virtual type_id_t type() const = 0;
         };
 
+        template <typename BaseClass>
+        struct polymorphic_traits {
+            using size_type = std::size_t;
+            using pointer = BaseClass*;
+            using type = BaseClass;
+
+
+            static HOST size_type sizeOf(pointer p) {}
+            static HOSTDEVICE void create(simt::containers::vector<BaseClass*> & device_objs, simt::seralization::serializer & io) {}
+        };
+
+        template <typename T>
+        __global__
+            void constructDeviceObjs(simt::containers::vector<T*> & device_objs, simt::seralization::serializer & io) {
+            polymorphic_traits<T>::create(device_objs, io);
+        }
+
+        template <typename T>
+        __global__
+        void destructDeviceObjs(simt::containers::vector<T*> & device_objs) {
+            auto tid = threadIdx.x + blockIdx.x * blockDim.x;
+            for (; tid < device_objs.size(); tid += blockDim.x * gridDim.x) {
+                device_objs[tid]->~T();
+            }
+        }
+
+        template <typename T>
+        class polymorphic_mirror final {
+        public:
+            using pointer = T*;
+            using const_pointer = const pointer;
+            using size_type = std::size_t;
+            using difference_type = std::ptrdiff_t;
+
+            using array_type = simt::containers::vector<pointer>;
+            using array_value_type = pointer;
+            using array_pointer = array_value_type*;
+            using array_reference = array_type &;
+            using const_array_reference = const array_type &;
+            using iterator = array_type::iterator;
+            using const_iterator = array_type::const_iterator;
+            using reverse_iterator = array_type::reverse_iterator;
+            using const_reverse_iterator = array_type::const_reverse_iterator;
+
+            //static_assert(std::is_base_of<Serializable, BaseClass>::value, "Object must inherit from simt::serialization::Serializable");
+
+        public:
+            HOST polymorphic_mirror(std::vector<pointer> const& host_objs) : m_deviceObjs(new simt::containers::vector<pointer>(host_objs.size(), nullptr)) {
+                simt::memory::MaybeOwner<simt::seralization::serializer> io(new simt::seralization::serializer);
+
+                for (auto obj : host_objs) {
+                    io->mark();
+                    io->write(obj->type());
+                    obj->write(*io);
+                }
+
+                auto sizeofFold = [](size_t currentTotal, pointer p) {
+                    return currentTotal + polymorphic_traits<T>::sizeOf(p);
+                };
+
+                auto totalSpaceNeeded_bytes = std::accumulate(host_objs.begin(), host_objs.end(), size_t(0), sizeofFold);
+
+                m_tank.setData(new tank_type(totalSpaceNeeded_bytes, '\0'));
+
+                size_t offset = 0;
+                for (size_t i = 0; i < host_objs.size(); ++i) {
+                    (*m_deviceObjs)[i] = (pointer)(m_tank->data() + offset);
+                    offset += polymorphic_traits<T>::sizeOf(host_objs[i]);
+                }
+                    
+                constructDeviceObjs<<<nBlocks, nThreadsPerBlock>>>(*m_deviceObjs, *io);
+                simt_sync;
+            }
+
+            HOST ~polymorphic_mirror() {
+                destructDeviceObjs<<<nBlocks, nThreadsPerBlock>>>(*m_deviceObjs);
+                simt_sync;
+            }
+
+            HOSTDEVICE array_pointer get() const {
+                return m_deviceObjs.get();
+            }
+
+            HOSTDEVICE array_reference operator[](size_type index) {
+                return m_deviceObjs->operator[](index);
+            }
+
+            HOSTDEVICE const_array_reference operator[](size_type index) const {
+                return m_deviceObjs->operator[](index);
+            }
+
+            HOSTDEVICE array_reference operator*() {
+                return *m_deviceObjs;
+            }
+
+            //HOSTDEVICE bool operator==(polymorphic_mirror const& other) { return other.m_tank == m_tank; }
+            //HOSTDEVICE bool operator!=(polymorphic_mirror const& other) { return !(*this == other); }
+
+            HOSTDEVICE bool operator!() const { return !m_tank; }
+
+            HOSTDEVICE array_type* operator->() { return &m_deviceObjs; }
+            HOSTDEVICE array_type* operator->() const { return &m_deviceObjs; }
+
+            HOSTDEVICE iterator begin() { return m_deviceObjs->begin(); }
+            HOSTDEVICE iterator end() { return m_deviceObjs->end(); }
+
+            HOSTDEVICE const_iterator begin() const { return m_deviceObjs->begin(); }
+            HOSTDEVICE const_iterator end() const { return m_deviceObjs->end(); }
+
+        private:
+            constexpr static size_t nBlocks = 128;
+            constexpr static size_t nThreadsPerBlock = 128;
+
+            using tank_type = simt::containers::vector<char, simt::memory::device_allocator<char>, simt::memory::OverloadNewType::eHostOnly>;
+            simt::memory::MaybeOwner<tank_type> m_tank;
+
+            simt::memory::MaybeOwner<array_type> m_deviceObjs;
+        };
     }
 }
