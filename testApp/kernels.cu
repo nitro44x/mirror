@@ -280,7 +280,7 @@ void sayHi(simt::containers::vector<T*> & device_objs) {
 
 template<typename T>
 __global__
-void sayHi_poly(simt::seralization::polymorphic_mirror<T> & device_objs) {
+void sayHi_poly(simt::serialization::polymorphic_mirror<T> & device_objs) {
     auto tid = threadIdx.x + blockIdx.x * blockDim.x;
     for (; tid < device_objs.size(); tid += blockDim.x * gridDim.x) {
         //printf("Saying hi from an A* \n");
@@ -651,7 +651,7 @@ void test15() {
 }
 
 void test16() {
-    simt::seralization::serializer io;
+    simt::serialization::serializer io;
     double in_d = 12.234;
     std::cout << "in: " << in_d << std::endl;
     io.write(in_d);
@@ -697,7 +697,7 @@ void test16() {
     std::cout << "out: " << out_c << std::endl;
 
     std::cout << std::endl << "Read them again!" << std::endl;
-    io.seek(simt::seralization::Position::Beginning);
+    io.seek(simt::serialization::Position::Beginning);
     io.read(&out_d);
     std::cout << "out: " << out_d << std::endl;
     io.read(&out_d);
@@ -724,7 +724,7 @@ struct test17_b {
 };
 
 void test17() {
-    simt::seralization::serializer io;
+    simt::serialization::serializer io;
     test17_a a;
     double a_d_in = 998877.66;
     test17_b b;
@@ -793,7 +793,7 @@ struct alignas(32) test18_b {
     char c;
 };
 
-__global__ void test18_kernel(simt::seralization::serializer const& io) {
+__global__ void test18_kernel(simt::serialization::serializer const& io) {
     auto const tid = threadIdx.x + blockIdx.x * blockDim.x;
     if (tid == 0) {
         test18_a a;
@@ -822,7 +822,7 @@ __global__ void test18_kernel(simt::seralization::serializer const& io) {
 }
 
 void test18() {
-    auto io = new simt::seralization::serializer;
+    auto io = new simt::serialization::serializer;
     test18_a a;
     a.d = 1.23;
     a.s = 123;
@@ -879,7 +879,7 @@ enum class Test19Types {
     Max_
 };
 
-class Base : public simt::seralization::Serializable<Test19Types> {
+class Base : public simt::serialization::Serializable<Test19Types> {
 public:
     HOSTDEVICE virtual ~Base() { ; }
 
@@ -897,13 +897,13 @@ public:
         ++j;
     }
 
-    HOST void write(simt::seralization::serializer & io) const override {
+    HOST void write(simt::serialization::serializer & io) const override {
         printf("Writing in Derived1 %d\n", j);
         io.write(j);
     }
 
-    HOSTDEVICE void read(simt::seralization::serializer::size_type startPosition, 
-                         simt::seralization::serializer & io) override {
+    HOSTDEVICE void read(simt::serialization::serializer::size_type startPosition, 
+                         simt::serialization::serializer & io) override {
         io.read(startPosition, &j);
         printf("[%u] Reading in Derived1 %d\n", simt::utilities::getTID(), j);
     }
@@ -927,13 +927,13 @@ public:
         ++d;
     }
 
-    HOST void write(simt::seralization::serializer & io) const override {
+    HOST void write(simt::serialization::serializer & io) const override {
         printf("Writing in Derived2 %lf\n", d);
         io.write(d);
     }
 
-    HOSTDEVICE void read(simt::seralization::serializer::size_type startPosition,
-        simt::seralization::serializer & io) override {
+    HOSTDEVICE void read(simt::serialization::serializer::size_type startPosition,
+        simt::serialization::serializer & io) override {
         io.read(startPosition, &d);
         printf("[%u] Reading in Derived2 %lf\n", simt::utilities::getTID(), d);
     }
@@ -974,14 +974,14 @@ public:
         Derived1::sayHi();
     }
 
-    HOST void write(simt::seralization::serializer & io) const override {
+    HOST void write(simt::serialization::serializer & io) const override {
         printf("Writing in Derived1_2 %p\n", v.get());
         io.write(v.get());
         Derived1::write(io);
     }
 
-    HOSTDEVICE void read(simt::seralization::serializer::size_type startPosition,
-        simt::seralization::serializer & io) override {
+    HOSTDEVICE void read(simt::serialization::serializer::size_type startPosition,
+        simt::serialization::serializer & io) override {
         simt::containers::vector<double> * p = nullptr;
         io.read(startPosition, &p);
         v.setData(p, false);
@@ -1009,7 +1009,7 @@ struct type_getter<Test19Types::a> { \
 TEST19_TYPES
 #undef ENTRY
 
-HOST Base* create_obj_test19(size_t obj_idx, simt::seralization::serializer & io) {
+HOST Base* create_obj_test19(size_t obj_idx, simt::serialization::serializer & io) {
     auto startPosition = io.mark_position(obj_idx);
     Test19Types type;
     io.read(startPosition, &type);
@@ -1043,7 +1043,7 @@ void test19() {
         host_objs.push_back(new Derived1_2(5, i));
     }
 
-    simt::seralization::serializer io;
+    simt::serialization::serializer io;
     for (auto obj : host_objs) {
         io.mark();
         io.write(obj->type());
@@ -1066,7 +1066,7 @@ void test19() {
 }
 
 template <>
-struct simt::seralization::polymorphic_traits<Base> {
+struct simt::serialization::polymorphic_traits<Base> {
     using size_type = std::size_t;
     using pointer = Base*;
     using enum_type = Test19Types;
@@ -1091,7 +1091,7 @@ struct simt::seralization::polymorphic_traits<Base> {
         }
     }
 
-    static HOSTDEVICE void create(simt::containers::vector<Base*> & device_objs, simt::seralization::serializer & io) {
+    static HOSTDEVICE void create(simt::containers::vector<Base*> & device_objs, simt::serialization::serializer & io) {
         auto tid = threadIdx.x + blockIdx.x * blockDim.x;
 
         for (; tid < device_objs.size(); tid += blockDim.x * gridDim.x) {
@@ -1119,13 +1119,13 @@ struct simt::seralization::polymorphic_traits<Base> {
     }
 };
 
-std::map<Test19Types, size_t> simt::seralization::polymorphic_traits<Base>::cache{};
+std::map<Test19Types, size_t> simt::serialization::polymorphic_traits<Base>::cache{};
 
 
 template <typename BaseClass>
 __global__
-void constructDeviceTest19Objs(simt::containers::vector<BaseClass*> & device_objs, simt::seralization::serializer & io) {
-    simt::seralization::polymorphic_traits<BaseClass>::create(device_objs, io);
+void constructDeviceTest19Objs(simt::containers::vector<BaseClass*> & device_objs, simt::serialization::serializer & io) {
+    simt::serialization::polymorphic_traits<BaseClass>::create(device_objs, io);
 }
 
 void test20() {
@@ -1137,7 +1137,7 @@ void test20() {
         host_objs.push_back(new Derived1_2(5, i));
     }
 
-    simt::memory::MaybeOwner<simt::seralization::serializer> io(new simt::seralization::serializer);
+    simt::memory::MaybeOwner<simt::serialization::serializer> io(new simt::serialization::serializer);
 
     for (auto obj : host_objs) {
         io->mark();
@@ -1152,7 +1152,7 @@ void test20() {
     }
 
     auto sizeofFold = [](size_t currentTotal, Base * p) {
-        return currentTotal + simt::seralization::polymorphic_traits<Base>::sizeOf(p);
+        return currentTotal + simt::serialization::polymorphic_traits<Base>::sizeOf(p);
     };
 
     auto totalSpaceNeeded_bytes = std::accumulate(host_objs.begin(), host_objs.end(), size_t(0), sizeofFold);
@@ -1209,7 +1209,7 @@ void test21() {
         host_objs.push_back(new Derived1_2(5, i));
     }
 
-    simt::seralization::polymorphic_mirror<Base> device_objs(host_objs);
+    simt::serialization::polymorphic_mirror<Base> device_objs(host_objs);
 
     auto const nBlocks = 128;
     auto const nThreadsPerBlock = 128;

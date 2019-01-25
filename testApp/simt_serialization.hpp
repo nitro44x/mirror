@@ -7,7 +7,7 @@
 #include <numeric>
 
 namespace simt {
-    namespace seralization {
+    namespace serialization {
 
         enum class Position {
             Beginning,
@@ -105,9 +105,9 @@ namespace simt {
 
             HOSTDEVICE virtual ~Serializable() { ; }
 
-            HOST virtual void write(simt::seralization::serializer & io) const = 0;
-            HOSTDEVICE virtual void read(simt::seralization::serializer::size_type startPosition,
-                                         simt::seralization::serializer & io) = 0;
+            HOST virtual void write(simt::serialization::serializer & io) const = 0;
+            HOSTDEVICE virtual void read(simt::serialization::serializer::size_type startPosition,
+                                         simt::serialization::serializer & io) = 0;
             HOSTDEVICE virtual type_id_t type() const = 0;
         };
 
@@ -123,12 +123,12 @@ namespace simt {
 
             static HOST size_type sizeOf(pointer p) { return 0; }
 
-            static HOSTDEVICE void create(simt::containers::vector<BaseClass*> & device_objs, simt::seralization::serializer & io) {}
+            static HOSTDEVICE void create(simt::containers::vector<BaseClass*> & device_objs, simt::serialization::serializer & io) {}
         };
 
         template <typename T>
         __global__
-            void constructDeviceObjs(simt::containers::vector<T*> & device_objs, simt::seralization::serializer & io) {
+            void constructDeviceObjs(simt::containers::vector<T*> & device_objs, simt::serialization::serializer & io) {
             polymorphic_traits<T>::create(device_objs, io);
         }
 

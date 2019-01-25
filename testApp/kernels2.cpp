@@ -28,7 +28,7 @@ enum SimpleTypes {
     Max_
 };
 
-class SimpleBase : public simt::seralization::Serializable<SimpleTypes> {
+class SimpleBase : public simt::serialization::Serializable<SimpleTypes> {
 public:
     HOSTDEVICE virtual ~SimpleBase() { ; }
 
@@ -46,13 +46,13 @@ public:
         ++j;
     }
 
-    HOST void write(simt::seralization::serializer & io) const override {
+    HOST void write(simt::serialization::serializer & io) const override {
         printf("Writing in Derived1 %d\n", j);
         io.write(j);
     }
 
-    HOSTDEVICE void read(simt::seralization::serializer::size_type startPosition,
-        simt::seralization::serializer & io) override {
+    HOSTDEVICE void read(simt::serialization::serializer::size_type startPosition,
+        simt::serialization::serializer & io) override {
         io.read(startPosition, &j);
         printf("[%u] Reading in Derived1 %d\n", simt::utilities::getTID(), j);
     }
@@ -76,13 +76,13 @@ public:
         ++d;
     }
 
-    HOST void write(simt::seralization::serializer & io) const override {
+    HOST void write(simt::serialization::serializer & io) const override {
         printf("Writing in Derived2 %lf\n", d);
         io.write(d);
     }
 
-    HOSTDEVICE void read(simt::seralization::serializer::size_type startPosition,
-        simt::seralization::serializer & io) override {
+    HOSTDEVICE void read(simt::serialization::serializer::size_type startPosition,
+        simt::serialization::serializer & io) override {
         io.read(startPosition, &d);
         printf("[%u] Reading in Derived2 %lf\n", simt::utilities::getTID(), d);
     }
@@ -123,14 +123,14 @@ public:
         SimpleDerived1::sayHi();
     }
 
-    HOST void write(simt::seralization::serializer & io) const override {
+    HOST void write(simt::serialization::serializer & io) const override {
         printf("Writing in Derived1_2 %p\n", v.get());
         io.write(v.get());
         SimpleDerived1::write(io);
     }
 
-    HOSTDEVICE void read(simt::seralization::serializer::size_type startPosition,
-        simt::seralization::serializer & io) override {
+    HOSTDEVICE void read(simt::serialization::serializer::size_type startPosition,
+        simt::serialization::serializer & io) override {
         simt::containers::vector<double> * p = nullptr;
         io.read(startPosition, &p);
         v.setData(p, false);
@@ -148,7 +148,7 @@ private:
 };
 
 template <>
-struct simt::seralization::polymorphic_traits<SimpleBase> {
+struct simt::serialization::polymorphic_traits<SimpleBase> {
     using size_type = std::size_t;
     using pointer = SimpleBase * ;
     using enum_type = SimpleTypes;
@@ -172,7 +172,7 @@ struct simt::seralization::polymorphic_traits<SimpleBase> {
         }
     }
 
-    static HOSTDEVICE void create(simt::containers::vector<pointer> & device_objs, simt::seralization::serializer & io) {
+    static HOSTDEVICE void create(simt::containers::vector<pointer> & device_objs, simt::serialization::serializer & io) {
         auto tid = simt::utilities::getTID();
 
         for (; tid < device_objs.size(); tid += blockDim.x * gridDim.x) {
@@ -184,7 +184,7 @@ struct simt::seralization::polymorphic_traits<SimpleBase> {
 
             #define ENTRY(a, b) \
             case enum_type::a: \
-                simt::seralization::construct_obj<b>(device_objs[tid]); \
+                simt::serialization::construct_obj<b>(device_objs[tid]); \
                 break;
                     SIMPLE_CONCRETE_TYPES
             #undef ENTRY
@@ -201,7 +201,7 @@ struct simt::seralization::polymorphic_traits<SimpleBase> {
     }
 };
 
-size_t simt::seralization::polymorphic_traits<SimpleBase>::cache[enum_type::Max_];
+size_t simt::serialization::polymorphic_traits<SimpleBase>::cache[enum_type::Max_];
 
 
 template<typename T>
@@ -223,7 +223,7 @@ void simple_polymorphic_test() {
         host_objs.push_back(new SimpleDerived1_2(5, i));
     }
 
-    simt::seralization::polymorphic_mirror<SimpleBase> device_objs(host_objs);
+    simt::serialization::polymorphic_mirror<SimpleBase> device_objs(host_objs);
 
     auto const nBlocks = 128;
     auto const nThreadsPerBlock = 128;
