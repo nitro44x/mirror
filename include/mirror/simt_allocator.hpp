@@ -34,7 +34,8 @@ namespace simt {
                 #ifndef __CUDA_ARCH__
                 void* out = nullptr;
                 simt_check(cudaMallocManaged(&out, n * sizeof(T)));
-                memset(out, 0, n * sizeof(T));
+                simt_sync;
+                //memset(out, 0, n * sizeof(T));
                 return static_cast<T*>(out);
                 #else
                 return nullptr;
@@ -44,6 +45,7 @@ namespace simt {
 
             HOSTDEVICE void deallocate(T* p, std::size_t) noexcept {
                 #ifndef __CUDA_ARCH__
+                simt_sync;
                 simt_check(cudaFree(p));
                 #endif
             }

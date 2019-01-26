@@ -3,6 +3,8 @@
 
 #include <cuda_runtime.h>
 
+#include <iostream>
+
 
 void assert_(cudaError_t code, const char *file, int line) {
     if (code == cudaSuccess) return;

@@ -73,8 +73,8 @@ void test1() {
     std::cout << std::endl;
 
     printArray<<<1, 1>>>(v.data(), v.size());
-    simt_sync
-        std::cout << std::endl;
+    simt_sync;
+    std::cout << std::endl;
 }
 
 void test2() {
@@ -87,8 +87,8 @@ void test2() {
         std::cout << d << " ";
     std::cout << std::endl;
     printArray<<<1, 1>>>(simt_v.data(), simt_v.size());
-    simt_sync
-        std::cout << std::endl;
+    simt_sync;
+    std::cout << std::endl;
 }
 
 void test3() {
@@ -101,8 +101,8 @@ void test3() {
     std::cout << std::endl;
     printVector(*simt_v_ptr);
     call_printVector<<<1, 1>>>(*simt_v_ptr);
-    simt_sync
-        delete simt_v_ptr;
+    simt_sync;
+    delete simt_v_ptr;
     std::cout << std::endl;
 }
 
@@ -116,8 +116,8 @@ void test3a() {
     std::cout << std::endl;
     printVector(*simt_v_ptr);
     call_printVector_ref<<<1, 1>>>(*simt_v_ptr);
-    simt_sync
-        delete simt_v_ptr;
+    simt_sync;
+    delete simt_v_ptr;
     std::cout << std::endl;
 }
 
@@ -131,10 +131,10 @@ void test4() {
         std::cout << d << " ";
     std::cout << std::endl;
     call_printVector<<<1, 1>>>(*simt_v_ptr);
-    simt_sync
-        delete simt_v_ptr;
-    simt_sync
-        std::cout << std::endl;
+    simt_sync;
+    delete simt_v_ptr;
+    simt_sync;
+    std::cout << std::endl;
 }
 
 void test5() {
@@ -142,13 +142,13 @@ void test5() {
     auto simt_v_ptr = new simt::containers::vector<double>;
     simt_v_ptr->resize(10);
     call_setTo<<<1, 1>>>(*simt_v_ptr, 123);
-    simt_sync
+    simt_sync;
         std::cout << "cpu v = ";
     for (auto const& d : *simt_v_ptr)
         std::cout << d << " ";
     std::cout << std::endl;
     call_printVector<<<1, 1>>>(*simt_v_ptr);
-    simt_sync
+    simt_sync;
         delete simt_v_ptr;
     std::cout << std::endl;
 }
@@ -163,7 +163,7 @@ void test6() {
         std::cout << d << " ";
     std::cout << std::endl;
     call_printVector<<<1, 1>>>(*simt_v_ptr);
-    simt_sync
+    simt_sync;
         delete simt_v_ptr;
     std::cout << std::endl;
 }
@@ -315,7 +315,7 @@ void test7() {
     auto const nThreadsPerBlock = 128;
     auto device_objs = new simt::containers::vector<A*>(encoded_objs->size(), nullptr);
     allocateDeviceObjs<<<nBlocks, nThreadsPerBlock>>>(*device_objs, *encoded_objs);
-    simt_sync
+    simt_sync;
         delete encoded_objs;
 
     size_t nNulls = 0;
@@ -330,9 +330,9 @@ void test7() {
     }
 
     sayHi<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
-    simt_sync
+    simt_sync;
         deallocateDeviceObjs<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
-    simt_sync
+    simt_sync;
 
         delete device_objs;
     for (auto o : host_objs)
@@ -420,13 +420,13 @@ void test10() {
         cudaMallocManaged((void**)&(*device_objs)[i], (*encoded_objs)[i].type == ABC_t::B ? sizeofB : sizeofC);
 
     constructDeviceObjs<<<nBlocks, nThreadsPerBlock>>>(*device_objs, *encoded_objs);
-    simt_sync
+    simt_sync;
 
 
-        sayHi<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
-    simt_sync
-        destructDeviceObjs_test<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
-    simt_sync
+    sayHi<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
+    simt_sync;
+    destructDeviceObjs_test<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
+    simt_sync;
 
 
         delete encoded_objs;
@@ -507,14 +507,14 @@ void test11() {
     std::cout << "tank end   = " << (void*)tankEnd << std::endl;
 
     constructDeviceObjs<<<nBlocks, nThreadsPerBlock>>>(*device_objs, *encoded_objs);
-    simt_sync
+    simt_sync;
 
     for (size_t i = 0; i < 100; ++i)
         sayHi<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
     std::cout << "Launched a bunch of sayHi's" << std::endl;
-    simt_sync
+    simt_sync;
         destructDeviceObjs_test<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
-    simt_sync
+    simt_sync;
 
 
         delete encoded_objs;
@@ -1183,13 +1183,13 @@ void test20() {
     auto const nBlocks = 128;
     auto const nThreadsPerBlock = 128;
     constructDeviceTest19Objs<<<nBlocks, nThreadsPerBlock>>>(*device_objs, *io);
-    simt_sync
+    simt_sync;
 
     sayHi<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
-    simt_sync
+    simt_sync;
 
     destructDeviceObjs_test<<<nBlocks, nThreadsPerBlock>>>(*device_objs);
-    simt_sync
+    simt_sync;
 
     for (auto p : new_host_objs) {
         delete p;
