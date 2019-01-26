@@ -2,10 +2,9 @@
 
 #include <iostream>
 
-#include <cuda_runtime.h>
+#include <driver_types.h>
 
 #define simt_check(ans) { assert_((ans), __FILE__, __LINE__); }
-
 void assert_(cudaError_t code, const char *file, int line);
 
 #define simt_sync simt_check(cudaDeviceSynchronize());
