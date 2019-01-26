@@ -6,7 +6,7 @@ set(cuda_cpp_srcs kernels2.cpp)
 
 set(cu_srcs kernels.cu)
 
-set(headers kernels.cuh
+set(headers kernels.hpp
             kernels2.hpp
 )
 

@@ -1,4 +1,4 @@
-#include "kernels.cuh"
+#include "kernels.hpp"
 #include "kernels2.hpp"
 
 #include <cuda_runtime.h>
