@@ -7,19 +7,6 @@
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 
-void test8_cpp() {
-    thrust::device_vector<double> d;
-    d.resize(10);
-    for (size_t i = 0; i < d.size(); ++i)
-        d[i] = (double)i;
-
-    thrust::host_vector<double> h = d;
-    for (auto const& i : h)
-        std::cout << i << " ";
-    std::cout << std::endl;
-
-}
-
 #define RUN_TEST(name) \
           std::cout << std::endl; \
           std::cout << "--------------------------------------------------------" << std::endl; \
@@ -57,7 +44,6 @@ int main() {
 
     // Thrust
     RUN_TEST(test8);
-    RUN_TEST(test8_cpp);
 
     // Overloading news
     RUN_TEST(test12);

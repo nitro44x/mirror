@@ -1,8 +1,8 @@
-#include "simt_macros.hpp"
-#include "simt_allocator.hpp"
-#include "simt_vector.hpp"
-#include "simt_serialization.hpp"
-#include "simt_utilities.hpp"
+#include <mirror/simt_macros.hpp>
+#include <mirror/simt_allocator.hpp>
+#include <mirror/simt_vector.hpp>
+#include <mirror/simt_serialization.hpp>
+#include <mirror/simt_utilities.hpp>
 
 #include <vector>
 #include <numeric>
@@ -728,7 +728,7 @@ void test17() {
     test17_a a;
     double a_d_in = 998877.66;
     test17_b b;
-    float4 b_f4_in = { 99, 88, 77, 66.123 };
+    float4 b_f4_in = { 99, 88, 77, 66.123f };
 
     std::cout << ":IN:" << std::endl << std::endl;
     std::cout << "obj A:" << std::endl;
@@ -832,7 +832,7 @@ void test18() {
     test18_b b;
     b.i = 9;
     b.c = '?';
-    float4 b_f4_in = { 99, 88, 77, 66.123 };
+    float4 b_f4_in = { 99, 88, 77, 66.123f };
 
     std::cout << ":IN:" << std::endl << std::endl;
     std::cout << "obj B:" << std::endl;

@@ -2,7 +2,7 @@
 
 #include <cuda_runtime.h>
 
-#include "simt_macros.hpp"
+#include <mirror/simt_macros.hpp>
 
 namespace simt {
 

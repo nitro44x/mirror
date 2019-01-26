@@ -1,9 +1,9 @@
 #include "kernels2.hpp"
 
-#include "simt_macros.hpp"
-#include "simt_vector.hpp"
-#include "simt_serialization.hpp"
-#include "simt_utilities.hpp"
+#include <mirror/simt_macros.hpp>
+#include <mirror/simt_vector.hpp>
+#include <mirror/simt_serialization.hpp>
+#include <mirror/simt_utilities.hpp>
 
 #include <vector>
 
@@ -215,13 +215,14 @@ void sayHi(simt::containers::vector<T*> & device_objs) {
 }
 
 void simple_polymorphic_test() {
-    const auto N = 5;
+    const auto N = 2;
     std::vector<SimpleBase*> host_objs;
-    for (auto i = 0; i < N; ++i) {
+    for (auto i = 0; i < N; ++i)
         host_objs.push_back(new SimpleDerived1(i));
+    for (auto i = 0; i < N; ++i)
         host_objs.push_back(new SimpleDerived2(i));
+    for (auto i = 0; i < N; ++i)
         host_objs.push_back(new SimpleDerived1_2(5, i));
-    }
 
     simt::serialization::polymorphic_mirror<SimpleBase> device_objs(host_objs);
 

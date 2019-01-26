@@ -1,4 +1,5 @@
-#include "simt_utilities.hpp"
+#include <mirror/simt_utilities.hpp>
+#include <mirror/simt_macros.hpp>
 
 #include <cuda_runtime.h>
 

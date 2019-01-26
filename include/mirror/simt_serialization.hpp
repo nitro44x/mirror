@@ -1,7 +1,7 @@
 #pragma once
 
-#include "simt_allocator.hpp"
-#include "simt_vector.hpp"
+#include <mirror/simt_allocator.hpp>
+#include <mirror/simt_vector.hpp>
 
 #include <vector>
 #include <numeric>

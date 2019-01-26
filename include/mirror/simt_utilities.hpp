@@ -1,6 +1,6 @@
 #pragma once
 
-#include "simt_macros.hpp"
+#include <mirror/simt_macros.hpp>
 
 #include <cuda_runtime_api.h>
 
