@@ -16,8 +16,8 @@ namespace simt {
 
         template <class T>
         struct managed_allocator {
-            typedef std::size_t size_type;
-            typedef std::ptrdiff_t difference_type;
+            using size_type = std::size_t;
+            using difference_type = std::ptrdiff_t;
 
             using value_type = T;
             using pointer = T * ;
@@ -215,6 +215,7 @@ namespace simt {
             HOSTDEVICE bool operator!=(MaybeOwner const& other) { return !(*this == other); }
 
             HOSTDEVICE bool operator!() const { return !m_data; }
+            HOSTDEVICE bool isOwned() const { return m_owner; }
 
             HOSTDEVICE T* operator->() { return get(); }
             HOSTDEVICE T* operator->() const { return get(); }

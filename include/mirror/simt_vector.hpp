@@ -97,9 +97,9 @@ namespace simt {
                 HOST vector(size_type nElements) : m_alloc(), m_data(m_alloc.allocate(nElements)), m_size(nElements), m_capacity(nElements) {}
 
                 HOST vector(size_type nElements, value_type initValue) : vector(nElements) {
-                    // \todo Find a way to do this at compile time.
+                    // \todo Find a way to do this if/else at compile time.
                     if (std::is_same<simt::memory::device_allocator<T>, allocator_type>::value) {
-                        setAllTo << <128, 128 >> > (m_data, m_data + sizeof(T)*m_size, initValue);
+                        setAllTo<<<128,128>>>(m_data, m_data + sizeof(T)*m_size, initValue);
                         simt_sync;
                     }
                     else {
