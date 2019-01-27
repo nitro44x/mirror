@@ -2,12 +2,18 @@ cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
 
 set(srcs main.cpp)
 
-set(cuda_cpp_srcs kernels2.cpp)
+set(cuda_cpp_srcs kernels2.cpp
+                  Particle.cpp
+)
 
-set(cu_srcs kernels.cu)
+set(cu_srcs kernels.cu
+            particle_test.cu
+)
 
 set(headers kernels.hpp
             kernels2.hpp
+            particle_test.hpp
+            Particle.hpp
 )
 
 

@@ -9,6 +9,8 @@ namespace simt {
 
         HOSTDEVICE int getTID();
 
+        HOSTDEVICE int gridStride();
+
         template <typename T>
         __global__ void compute_sizeof(size_t * size) {
             auto tid = threadIdx.x + blockIdx.x * blockDim.x;

@@ -21,5 +21,13 @@ namespace simt {
             return 0;
             #endif
         }
+
+        HOSTDEVICE int gridStride() {
+            #ifdef __CUDA_ARCH__
+            return (int)(blockDim.x * gridDim.x);
+            #else
+            return 1;
+            #endif
+        }
     }
 }

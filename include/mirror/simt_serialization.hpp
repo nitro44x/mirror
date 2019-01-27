@@ -154,9 +154,10 @@ namespace simt {
             using size_type = std::size_t;
             using difference_type = std::ptrdiff_t;
 
-            using array_type = simt::containers::vector<pointer>;
             using array_value_type = pointer;
-            using array_pointer = array_value_type*;
+            using array_value_pointer = array_value_type * ;
+            using array_type = simt::containers::vector<pointer>;
+            using array_pointer = array_type * ;
             using array_reference = array_type &;
             using const_array_reference = const array_type &;
             using iterator = array_type::iterator;
@@ -203,16 +204,16 @@ namespace simt {
                 return m_deviceObjs.get();
             }
 
+            HOSTDEVICE array_reference operator*() {
+                return *m_deviceObjs;
+            }
+
             HOSTDEVICE array_reference operator[](size_type index) {
                 return m_deviceObjs->operator[](index);
             }
 
             HOSTDEVICE const_array_reference operator[](size_type index) const {
                 return m_deviceObjs->operator[](index);
-            }
-
-            HOSTDEVICE array_reference operator*() {
-                return *m_deviceObjs;
             }
 
             //HOSTDEVICE bool operator==(polymorphic_mirror const& other) { return other.m_tank == m_tank; }

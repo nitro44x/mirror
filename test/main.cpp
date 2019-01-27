@@ -1,6 +1,8 @@
 #include "kernels.hpp"
 #include "kernels2.hpp"
 
+#include "particle_test.hpp"
+
 #include <cuda_runtime.h>
 
 #include <iostream>
@@ -63,6 +65,10 @@ int main() {
     RUN_TEST(test20);
     RUN_TEST(test21);
     RUN_TEST(simple_polymorphic_test);
+
+    // Simple particle test
+    RUN_TEST(simple_particle_test_gpu);
+    RUN_TEST(simple_particle_test_cpu);
 
     return 0;
 }
