@@ -8,3 +8,4 @@ set(CMAKE_CUDA_FLAGS_RELWITHDEBINFO "-G")
 
 add_subdirectory(src)
 add_subdirectory(test)
+add_subdirectory(examples)

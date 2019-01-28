@@ -1,5 +1,3 @@
-#include "particle_test.hpp"
-
 #include "Particle.hpp"
 
 #include <mirror/simt_macros.hpp>
@@ -170,12 +168,6 @@ __global__ void call_integrateTo(double dt, simt::containers::vector<Particle*> 
     integrateTo_gpu(dt, particles, store);
 }
 
-
-
-void print_particle_info(std::ostream & out, DataStore const* store, size_t i) {
-
-}
-
 void print_particle_state(std::ostream & out, DataStore const* store) {
     for (size_t i = 0; i < store->number_of_particles(); ++i) {
         out << store->x(i) << ", ";
@@ -240,9 +232,8 @@ public:
     DataStore * store = nullptr;
 };
 
-void simple_particle_test_gpu() {
+void simple_particle_test_gpu(size_t N, size_t outputInterval) {
     auto start = std::chrono::high_resolution_clock::now();
-    const auto N = 1000000;
     simulation sim(N);
     auto setup = std::chrono::high_resolution_clock::now();
 
@@ -250,10 +241,10 @@ void simple_particle_test_gpu() {
     auto const nThreadsPerBlock = 128;
 
     //auto & out = std::cout;
-    std::ofstream out("particle_trajectories.csv");
-    print_headers(out, sim.nParticles);
+    //std::ofstream out("particle_trajectories.csv");
+    //print_headers(out, sim.nParticles);
 
-    size_t nIterations = 5000;
+    size_t nIterations = outputInterval;
     double const dt = 1e-4;
     double currentTime = 0;
     for(size_t iteration = 0; iteration < nIterations; ++iteration) {
@@ -276,17 +267,16 @@ void simple_particle_test_gpu() {
 }
 
 
-void simple_particle_test_cpu() {
+void simple_particle_test_cpu(size_t N, size_t outputInterval) {
     auto start = std::chrono::high_resolution_clock::now();
-    const auto N = 1000000;
     simulation sim(N);
     auto setup = std::chrono::high_resolution_clock::now();
 
     //auto & out = std::cout;
-    std::ofstream out("particle_trajectories.csv");
-    print_headers(out, sim.nParticles);
+    //std::ofstream out("particle_trajectories.csv");
+    //print_headers(out, sim.nParticles);
 
-    size_t nIterations = 5000;
+    size_t nIterations = outputInterval;
     double const dt = 1e-4;
     double currentTime = 0;
     for (size_t iteration = 0; iteration < nIterations; ++iteration) {
@@ -302,4 +292,11 @@ void simple_particle_test_cpu() {
 
     std::cout << "Setup Time : " << std::chrono::duration_cast<std::chrono::seconds>(setup - start).count() << std::endl;
     std::cout << "Run Time : " << std::chrono::duration_cast<std::chrono::seconds>(stop - setup).count() << std::endl;
+}
+
+int main() {
+    size_t const N = 10000;
+    size_t const checkpointIterval = 100;
+    simple_particle_test_cpu(N, checkpointIterval);
+    simple_particle_test_gpu(N, checkpointIterval);
 }
