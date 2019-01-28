@@ -6,6 +6,7 @@ set(cuda_cpp_srcs kernels2.cpp
                   Particle.cpp
                   allocator_tests.cpp
                   vector_tests.cpp
+                  serialization_tests.cpp
 )
 
 set(cu_srcs kernels.cu
