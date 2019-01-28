@@ -95,6 +95,26 @@ TEMPLATE_TEST_CASE("HostOnly newed vectors can be sized and resized", "[vector]"
     delete v;
 }
 
+TEST_CASE("Benchmark vector push_back", "[vector][benchmark]") {
+    using VectorType = mirror::vector<int>;
+    static const int size = 500000;
+    VectorType v;
+
+    BENCHMARK("Load up a vector") {
+        v = VectorType();
+        for (int i = 0; i < size; ++i)
+            v.push_back(i);
+        simt_sync;
+    }
+    REQUIRE(v.size() == size);
+
+    BENCHMARK("Init a vector with a value") {
+        v = VectorType(size, 123);
+        simt_sync;
+    }
+    REQUIRE(v.size() == size);
+}
+
 TEMPLATE_TEST_CASE("UMA newed vectors construct with default value", "[vector]",
     mirror::managed_allocator<int>,
     mirror::device_allocator<int>,

@@ -117,16 +117,16 @@ struct mirror::polymorphic_traits<Particle> {
             return cache[enum_type::a];
             ALL_PARTICLE_TYPES
         #undef ENTRY
-        case enum_type::Max_:
         default:
-            throw;
+            throw std::runtime_error("Invalid type: cannot find the sizeof it");
         }
     }
 
     static HOSTDEVICE void create(mirror::vector<pointer> & device_objs, mirror::serializer & io) {
         auto tid = mirror::getTID();
+        auto const stride = mirror::gridStride();
 
-        for (; tid < device_objs.size(); tid += blockDim.x * gridDim.x) {
+        for (; tid < device_objs.size(); tid += stride) {
             auto startPosition = io.mark_position(tid);
             enum_type type;
             io.read(startPosition, &type);

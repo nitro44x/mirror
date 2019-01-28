@@ -130,7 +130,7 @@ namespace mirror {
 
         template <typename T>
         __global__
-            void constructDeviceObjs(mirror::vector<T*> & device_objs, mirror::serializer & io) {
+        void constructDeviceObjs(mirror::vector<T*> & device_objs, mirror::serializer & io) {
             polymorphic_traits<T>::create(device_objs, io);
         }
 
