@@ -9,14 +9,14 @@ using namespace Catch;
 using namespace Catch::literals;
 
 __global__ void setArrayTo(double * data, size_t n, double value) {
-    if (!simt::utilities::getTID()) {
+    if (!mirror::getTID()) {
         for (auto i = 0u; i < n; ++i)
             data[i] = value;
     }
 }
 
 TEST_CASE("std::vector can use UMA allocator", "[allocator]") {
-    std::vector<double, simt::memory::managed_allocator<double>> v;
+    std::vector<double, mirror::managed_allocator<double>> v;
     REQUIRE_NOTHROW(v.resize(10));
 
     setArrayTo<<<1,1>>>(v.data(), v.size(), 123);
@@ -33,8 +33,8 @@ TEST_CASE("std::vector cannot use device-only allocator", "[allocator]") {
     allocator to new a vector as well as the data underneath it (I think). It then uses a
     placement new construction of the vector, which explodes since the memory device side.
 
-    std::vector<double, simt::memory::device_allocator<double>> * v;
-    REQUIRE_THROWS(v = new std::vector<double, simt::memory::device_allocator<double>>());
+    std::vector<double, mirror::device_allocator<double>> * v;
+    REQUIRE_THROWS(v = new std::vector<double, mirror::device_allocator<double>>());
     delete v;
     */
 }
@@ -49,7 +49,7 @@ struct someData : public T {
 
 template <typename T>
 __global__ void setSomeData(someData<T> * data, char value) {
-    if (!simt::utilities::getTID()) {
+    if (!mirror::getTID()) {
         data->a = (double)value;
         data->b = (int)value;
         data->c = value;
@@ -57,7 +57,7 @@ __global__ void setSomeData(someData<T> * data, char value) {
 }
 
 TEST_CASE("Overloading new/delete with UMA", "[overload_new_delete]") {
-    auto data = new someData<simt::memory::Managed>;
+    auto data = new someData<mirror::Managed>;
     char value = 'A';
     setSomeData<<<1,1>>>(data, value);
     simt_sync;
@@ -70,15 +70,15 @@ TEST_CASE("Overloading new/delete with UMA", "[overload_new_delete]") {
 }
 
 TEST_CASE("Overloading new/delete with device-only", "[overload_new_delete]") {
-    auto data = new someData<simt::memory::DeviceOnly>;
+    auto data = new someData<mirror::DeviceOnly>;
     char value = 'A';
     setSomeData<<<1,1>>>(data, value);
     simt_sync;
 
-    someData<simt::memory::HostOnly> data_host;
+    someData<mirror::HostOnly> data_host;
 
     // Actually a bit scary that this works...
-    cudaMemcpy(&data_host, data, sizeof(someData<simt::memory::DeviceOnly>), cudaMemcpyDeviceToHost);
+    cudaMemcpy(&data_host, data, sizeof(someData<mirror::DeviceOnly>), cudaMemcpyDeviceToHost);
 
     REQUIRE(data_host.a == (double)value);
     REQUIRE(data_host.b == (int)value);
@@ -89,7 +89,7 @@ TEST_CASE("Overloading new/delete with device-only", "[overload_new_delete]") {
 
 TEST_CASE("MaybeOwner sematics work with standard containers", "[maybe_owner]") {
     using TestType = std::string;
-    simt::memory::MaybeOwner<std::vector<TestType>> v(new std::vector<TestType>(5));
+    mirror::MaybeOwner<std::vector<TestType>> v(new std::vector<TestType>(5));
 
     REQUIRE(v->size() == 5);
     REQUIRE(v->capacity() >= 5);
@@ -102,7 +102,7 @@ TEST_CASE("MaybeOwner sematics work with standard containers", "[maybe_owner]") 
     }
 
     SECTION("Move constructor of MaybeOwner moves the ownership.") {
-        simt::memory::MaybeOwner<std::vector<TestType>> v2(std::move(v));
+        mirror::MaybeOwner<std::vector<TestType>> v2(std::move(v));
         REQUIRE(v2.isOwned() == true);
         REQUIRE(v.isOwned() == false);
     }
@@ -168,7 +168,7 @@ TEST_CASE("MaybeOwner deletes owned data", "[maybe_owner]") {
     SECTION("MaybeOwner deallocates up data if it owns it") {
         resetAllocCounts();
         {
-            simt::memory::MaybeOwner<TestArray> v(new TestArray(5));
+            mirror::MaybeOwner<TestArray> v(new TestArray(5));
         }
         REQUIRE(nAlloc == nDealloc);
         REQUIRE(nAlloc > 0);
@@ -178,9 +178,9 @@ TEST_CASE("MaybeOwner deletes owned data", "[maybe_owner]") {
         resetAllocCounts();
         size_t tmp_nAllocs;
         {
-            simt::memory::MaybeOwner<TestArray> v2;
+            mirror::MaybeOwner<TestArray> v2;
             {
-                simt::memory::MaybeOwner<TestArray> v(new TestArray(5));
+                mirror::MaybeOwner<TestArray> v(new TestArray(5));
                 tmp_nAllocs = nAlloc;
                 resetAllocCounts();
                 v2 = std::move(v);
@@ -196,12 +196,12 @@ TEST_CASE("MaybeOwner deletes owned data", "[maybe_owner]") {
     SECTION("MaybeOwner does not deallocates up data if it doest not own it (move constructor)") {
         resetAllocCounts();
         {
-            simt::memory::MaybeOwner<TestArray> v(new TestArray(5));
+            mirror::MaybeOwner<TestArray> v(new TestArray(5));
             REQUIRE(nAlloc > 0);
             REQUIRE(nDealloc == 0);
             size_t tmp_alloc = nAlloc;
             size_t tmp_dealloc = nDealloc;
-            simt::memory::MaybeOwner<TestArray> v2(std::move(v));
+            mirror::MaybeOwner<TestArray> v2(std::move(v));
             REQUIRE(tmp_alloc == nAlloc);
             REQUIRE(tmp_dealloc == nDealloc);
         }
@@ -214,7 +214,7 @@ TEST_CASE("MaybeOwner deletes owned data", "[maybe_owner]") {
 TEST_CASE("MaybeOwner returns expected types", "[maybe_owner]") {
     using TestType = double;
     using TestArray = std::vector<TestType, counting_allocator<TestType>>;
-    simt::memory::MaybeOwner<TestArray> v(new TestArray(5));
+    mirror::MaybeOwner<TestArray> v(new TestArray(5));
 
     REQUIRE(typeid(v.get()).name() == typeid(TestArray*).name());
     REQUIRE(typeid(*v).name() == typeid(TestArray&).name());

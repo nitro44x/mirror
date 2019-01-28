@@ -12,7 +12,7 @@ TEMPLATE_TEST_CASE("Can serialize basic types and get them back out", "[serializ
     float,
     double,
     char) {
-    simt::serialization::serializer io;
+    mirror::serializer io;
 
     TestType in = 5;
 
@@ -22,7 +22,7 @@ TEMPLATE_TEST_CASE("Can serialize basic types and get them back out", "[serializ
     TestType out = 0;
     TestType * p_out = nullptr;
 
-    io.seek(simt::serialization::Position::Beginning);
+    io.seek(mirror::Position::Beginning);
     io.read(&out);
     io.read(&p_out);
 
@@ -44,7 +44,7 @@ TEST_CASE("Can mark locations within serializer and read them out of order", "[s
     a_t a = { 1.23, 5 };
     b_t b = { 'D', 2 };
 
-    simt::serialization::serializer io;
+    mirror::serializer io;
     auto a_pos = io.mark();
     io.write(a.i);
     io.write(a.j);

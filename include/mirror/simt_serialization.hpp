@@ -2,25 +2,25 @@
 
 #include <mirror/simt_allocator.hpp>
 #include <mirror/simt_vector.hpp>
+#include <mirror/simt_utilities.hpp>
 
 #include <vector>
 #include <numeric>
 
-namespace simt {
-    namespace serialization {
+namespace mirror {
 
         enum class Position {
             Beginning,
             End
         };
 
-        class serializer final : public simt::memory::Managed {
+        class serializer final : public mirror::Managed {
         public:
-            using buffer_t = simt::containers::vector<char>;
-            using indices_t = simt::containers::vector<size_t>;
+            using buffer_t = mirror::vector<char>;
+            using indices_t = mirror::vector<size_t>;
 
-            using size_type = simt::containers::vector<char>::size_type;
-            using index_size_type = simt::containers::vector<size_t>::size_type;
+            using size_type = mirror::vector<char>::size_type;
+            using index_size_type = mirror::vector<size_t>::size_type;
 
             using value_type = serializer;
             using pointer = serializer*;
@@ -93,9 +93,9 @@ namespace simt {
             }
 
         private:
-            simt::memory::MaybeOwner<buffer_t> m_data;
+            mirror::MaybeOwner<buffer_t> m_data;
             buffer_t::size_type m_currentIndex;
-            simt::memory::MaybeOwner<indices_t> m_objIndices;
+            mirror::MaybeOwner<indices_t> m_objIndices;
         };
 
         template <typename T>
@@ -105,36 +105,38 @@ namespace simt {
 
             HOSTDEVICE virtual ~Serializable() { ; }
 
-            HOST virtual void write(simt::serialization::serializer & io) const = 0;
-            HOSTDEVICE virtual void read(simt::serialization::serializer::size_type startPosition,
-                                         simt::serialization::serializer & io) = 0;
+            HOST virtual void write(mirror::serializer & io) const = 0;
+            HOSTDEVICE virtual void read(mirror::serializer::size_type startPosition,
+                                         mirror::serializer & io) = 0;
             HOSTDEVICE virtual type_id_t type() const = 0;
         };
 
-        template<typename BaseClass> struct force_specialization : public std::false_type {};
-
         template <typename BaseClass>
         struct polymorphic_traits {
+            /*
+            This trait must be specialized for the base class that you intend on mirroring.
+            See polymorphic_mirror_tests.cpp for an example.
+
             using size_type = std::size_t;
             using pointer = BaseClass*;
-            using type = BaseClass;
+            using type = BaseClass;          // Top Level object (that inherites from mirror::Serializable
+            using enum_type = BaseClassType; // Enum for each class in the object tree.
+            static HOST size_type sizeOf(pointer p) { return 0; }
+            static HOSTDEVICE void create(mirror::vector<BaseClass*> & device_objs, mirror::serializer & io) {}
+            */
 
             static_assert(force_specialization<BaseClass>::value, "Must provide polymorphic_traits");
-
-            static HOST size_type sizeOf(pointer p) { return 0; }
-
-            static HOSTDEVICE void create(simt::containers::vector<BaseClass*> & device_objs, simt::serialization::serializer & io) {}
         };
 
         template <typename T>
         __global__
-            void constructDeviceObjs(simt::containers::vector<T*> & device_objs, simt::serialization::serializer & io) {
+            void constructDeviceObjs(mirror::vector<T*> & device_objs, mirror::serializer & io) {
             polymorphic_traits<T>::create(device_objs, io);
         }
 
         template <typename T>
         __global__
-        void destructDeviceObjs(simt::containers::vector<T*> & device_objs) {
+        void destructDeviceObjs(mirror::vector<T*> & device_objs) {
             auto tid = threadIdx.x + blockIdx.x * blockDim.x;
             for (; tid < device_objs.size(); tid += blockDim.x * gridDim.x) {
                 device_objs[tid]->~T();
@@ -156,7 +158,7 @@ namespace simt {
 
             using array_value_type = pointer;
             using array_value_pointer = array_value_type * ;
-            using array_type = simt::containers::vector<pointer>;
+            using array_type = mirror::vector<pointer>;
             using array_pointer = array_type * ;
             using array_reference = array_type &;
             using const_array_reference = const array_type &;
@@ -165,11 +167,11 @@ namespace simt {
             using reverse_iterator = array_type::reverse_iterator;
             using const_reverse_iterator = array_type::const_reverse_iterator;
 
-            static_assert(std::is_base_of<Serializable<polymorphic_traits<T>::enum_type>, T>::value, "Object must inherit from simt::serialization::Serializable");
+            static_assert(std::is_base_of<Serializable<polymorphic_traits<T>::enum_type>, T>::value, "Object must inherit from mirror::Serializable");
 
         public:
-            HOST polymorphic_mirror(std::vector<pointer> const& host_objs) : m_deviceObjs(new simt::containers::vector<pointer>(host_objs.size(), nullptr)) {
-                simt::memory::MaybeOwner<serializer> io(new serializer(startingBufferSize));
+            HOST polymorphic_mirror(std::vector<pointer> const& host_objs) : m_deviceObjs(new mirror::vector<pointer>(host_objs.size(), nullptr)) {
+                mirror::MaybeOwner<serializer> io(new serializer(startingBufferSize));
 
                 for (auto obj : host_objs) {
                     io->mark();
@@ -234,10 +236,9 @@ namespace simt {
             constexpr static size_t nBlocks = 128;
             constexpr static size_t nThreadsPerBlock = 128;
 
-            using tank_type = simt::containers::vector<char, simt::memory::device_allocator<char>, simt::memory::OverloadNewType::eHostOnly>;
-            simt::memory::MaybeOwner<tank_type> m_tank;
+            using tank_type = mirror::vector<char, mirror::device_allocator<char>, mirror::OverloadNewType::eHostOnly>;
+            mirror::MaybeOwner<tank_type> m_tank;
 
-            simt::memory::MaybeOwner<array_type> m_deviceObjs;
+            mirror::MaybeOwner<array_type> m_deviceObjs;
         };
-    }
 }

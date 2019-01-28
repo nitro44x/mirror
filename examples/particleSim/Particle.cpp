@@ -16,11 +16,11 @@ HOSTDEVICE double ParticleSquare::area() const { return m_L * m_L; }
 
 HOSTDEVICE double ParticleSquare::mass() const { return 1.0; }
 
-HOST void ParticleSquare::write(simt::serialization::serializer & io) const {
+HOST void ParticleSquare::write(mirror::serializer & io) const {
     io.write(m_L);
 }
 
-HOSTDEVICE void ParticleSquare::read(simt::serialization::serializer::size_type startPosition, simt::serialization::serializer & io) {
+HOSTDEVICE void ParticleSquare::read(mirror::serializer::size_type startPosition, mirror::serializer & io) {
     io.read(startPosition, &m_L);
 }
 
@@ -36,11 +36,11 @@ HOSTDEVICE double ParticleCircle::area() const { return 3.1415 * m_radius * m_ra
 
 HOSTDEVICE double ParticleCircle::mass() const { return 1.0; }
 
-HOST void ParticleCircle::write(simt::serialization::serializer & io) const {
+HOST void ParticleCircle::write(mirror::serializer & io) const {
     io.write(m_radius);
 }
 
-HOSTDEVICE void ParticleCircle::read(simt::serialization::serializer::size_type startPosition, simt::serialization::serializer & io) {
+HOSTDEVICE void ParticleCircle::read(mirror::serializer::size_type startPosition, mirror::serializer & io) {
     io.read(startPosition, &m_radius);
 }
 
@@ -56,12 +56,12 @@ HOSTDEVICE double ParticleTriangle::area() const { return 0.5 * m_base * m_heigh
 
 HOSTDEVICE double ParticleTriangle::mass() const { return 1.0; }
 
-HOST void ParticleTriangle::write(simt::serialization::serializer & io) const {
+HOST void ParticleTriangle::write(mirror::serializer & io) const {
     io.write(m_base);
     io.write(m_height);
 }
 
-HOSTDEVICE void ParticleTriangle::read(simt::serialization::serializer::size_type startPosition, simt::serialization::serializer & io) {
+HOSTDEVICE void ParticleTriangle::read(mirror::serializer::size_type startPosition, mirror::serializer & io) {
     io.read(startPosition, &m_base);
     io.read(startPosition, &m_height);
 }
@@ -70,4 +70,4 @@ HOSTDEVICE ParticleTriangle::type_id_t ParticleTriangle::type() const {
     return ParticleTypes::eParticleTriangle;
 }
 
-size_t simt::serialization::polymorphic_traits<Particle>::cache[enum_type::Max_];
+size_t mirror::polymorphic_traits<Particle>::cache[enum_type::Max_];

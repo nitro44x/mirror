@@ -4,8 +4,7 @@
 
 #include <cuda_runtime_api.h>
 
-namespace simt {
-    namespace utilities {
+namespace mirror {
 
         HOSTDEVICE int getTID();
 
@@ -28,5 +27,6 @@ namespace simt {
             cudaFree(size);
             return result;
         }
-    }
+
+        template<typename BaseClass> struct force_specialization : public std::false_type {};
 }

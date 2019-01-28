@@ -25,7 +25,7 @@ enum ParticleTypes {
     Max_
 };
 
-class Particle : public simt::serialization::Serializable<ParticleTypes> {
+class Particle : public mirror::Serializable<ParticleTypes> {
 public:
     HOSTDEVICE virtual ~Particle() { ; }
     HOSTDEVICE virtual double area() const = 0;
@@ -43,10 +43,10 @@ public:
 
     HOSTDEVICE double mass() const override;
 
-    HOST void write(simt::serialization::serializer & io) const override;
+    HOST void write(mirror::serializer & io) const override;
 
-    HOSTDEVICE void read(simt::serialization::serializer::size_type startPosition,
-        simt::serialization::serializer & io) override;
+    HOSTDEVICE void read(mirror::serializer::size_type startPosition,
+        mirror::serializer & io) override;
 
     HOSTDEVICE type_id_t type() const override;
 
@@ -64,10 +64,10 @@ public:
 
     HOSTDEVICE double mass() const override;
 
-    HOST void write(simt::serialization::serializer & io) const override;
+    HOST void write(mirror::serializer & io) const override;
 
-    HOSTDEVICE void read(simt::serialization::serializer::size_type startPosition,
-        simt::serialization::serializer & io) override;
+    HOSTDEVICE void read(mirror::serializer::size_type startPosition,
+        mirror::serializer & io) override;
 
     HOSTDEVICE type_id_t type() const override;
 
@@ -85,10 +85,10 @@ public:
 
     HOSTDEVICE double mass() const override;
 
-    HOST void write(simt::serialization::serializer & io) const override;
+    HOST void write(mirror::serializer & io) const override;
 
-    HOSTDEVICE void read(simt::serialization::serializer::size_type startPosition,
-        simt::serialization::serializer & io) override;
+    HOSTDEVICE void read(mirror::serializer::size_type startPosition,
+        mirror::serializer & io) override;
 
     HOSTDEVICE type_id_t type() const override;
 
@@ -97,8 +97,9 @@ private:
     double m_height;
 };
 
+
 template <>
-struct simt::serialization::polymorphic_traits<Particle> {
+struct mirror::polymorphic_traits<Particle> {
     using size_type = std::size_t;
     using pointer = Particle * ;
     using enum_type = ParticleTypes;
@@ -110,20 +111,20 @@ struct simt::serialization::polymorphic_traits<Particle> {
             return cache[p->type()];
 
         switch (p->type()) {
-#define ENTRY(a, b) \
+        #define ENTRY(a, b) \
         case enum_type::a: \
-            cache[enum_type::a] = simt::utilities::getDeviceSize<b>(); \
+            cache[enum_type::a] = mirror::getDeviceSize<b>(); \
             return cache[enum_type::a];
             ALL_PARTICLE_TYPES
-#undef ENTRY
+        #undef ENTRY
         case enum_type::Max_:
         default:
             throw;
         }
     }
 
-    static HOSTDEVICE void create(simt::containers::vector<pointer> & device_objs, simt::serialization::serializer & io) {
-        auto tid = simt::utilities::getTID();
+    static HOSTDEVICE void create(mirror::vector<pointer> & device_objs, mirror::serializer & io) {
+        auto tid = mirror::getTID();
 
         for (; tid < device_objs.size(); tid += blockDim.x * gridDim.x) {
             auto startPosition = io.mark_position(tid);
@@ -132,12 +133,12 @@ struct simt::serialization::polymorphic_traits<Particle> {
 
             switch (type) {
 
-#define ENTRY(a, b) \
+            #define ENTRY(a, b) \
             case enum_type::a: \
-                simt::serialization::construct_obj<b>(device_objs[tid]); \
+                mirror::construct_obj<b>(device_objs[tid]); \
                 break;
                 PARTICLE_CONCRETE_TYPES
-#undef ENTRY
+            #undef ENTRY
 
             default:
                 printf("Error allocating object!\n");

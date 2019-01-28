@@ -4,9 +4,8 @@
 
 #include <mirror/simt_macros.hpp>
 
-namespace simt {
+namespace mirror {
 
-    namespace memory {
         /*
             https://stackoverflow.com/a/53033942
             Broadly speaking, an Allocator type is used when an object of one type (typically a container) needs to
@@ -126,12 +125,12 @@ namespace simt {
             eHostOnly
         };
 
-        template<OverloadNewType T> struct force_specialization : public std::false_type {};
+        template<OverloadNewType T> struct force_overload_specialization : public std::false_type {};
 
         template <OverloadNewType T>
         struct Overload_trait_t {
             using type = HostOnly;
-            static_assert(force_specialization<T>::value, "Must choose how to overload new/delete");
+            static_assert(force_overload_specialization<T>::value, "Must choose how to overload new/delete");
         };
 
         template <>
@@ -239,5 +238,4 @@ namespace simt {
             T* m_data = nullptr;
             bool m_owner = true;
         };
-    }
 }

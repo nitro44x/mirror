@@ -6,11 +6,11 @@
 using namespace Catch;
 
 TEMPLATE_TEST_CASE("UMA newed vectors can be sized and resized", "[vector]", 
-    simt::memory::managed_allocator<int>, 
-    simt::memory::device_allocator<int>,
+    mirror::managed_allocator<int>, 
+    mirror::device_allocator<int>,
     std::allocator<int>) {
 
-    using VectorType = simt::containers::vector<int, TestType, simt::memory::OverloadNewType::eManaged>;
+    using VectorType = mirror::vector<int, TestType, mirror::OverloadNewType::eManaged>;
 
     auto v = new VectorType(5);
 
@@ -51,11 +51,11 @@ TEMPLATE_TEST_CASE("UMA newed vectors can be sized and resized", "[vector]",
 }
 
 TEMPLATE_TEST_CASE("HostOnly newed vectors can be sized and resized", "[vector]",
-    simt::memory::managed_allocator<int>,
-    simt::memory::device_allocator<int>,
+    mirror::managed_allocator<int>,
+    mirror::device_allocator<int>,
     std::allocator<int>) {
 
-    using VectorType = simt::containers::vector<int, TestType, simt::memory::OverloadNewType::eHostOnly>;
+    using VectorType = mirror::vector<int, TestType, mirror::OverloadNewType::eHostOnly>;
 
     auto v = new VectorType(5);
 
@@ -96,15 +96,15 @@ TEMPLATE_TEST_CASE("HostOnly newed vectors can be sized and resized", "[vector]"
 }
 
 TEMPLATE_TEST_CASE("UMA newed vectors construct with default value", "[vector]",
-    simt::memory::managed_allocator<int>,
-    simt::memory::device_allocator<int>,
+    mirror::managed_allocator<int>,
+    mirror::device_allocator<int>,
     std::allocator<int>) {
 
-    using VectorType = simt::containers::vector<int, TestType, simt::memory::OverloadNewType::eManaged>;
+    using VectorType = mirror::vector<int, TestType, mirror::OverloadNewType::eManaged>;
     int setValue = 123;
     auto v = new VectorType(5, setValue);
 
-    if (std::is_same<simt::memory::device_allocator<int>, typename VectorType::allocator_type>::value) {
+    if (std::is_same<mirror::device_allocator<int>, typename VectorType::allocator_type>::value) {
         std::vector<int> host_data(5);
         cudaMemcpy(host_data.data(), v->data(), sizeof(int)*v->size(), cudaMemcpyDeviceToHost);
 
@@ -121,15 +121,15 @@ TEMPLATE_TEST_CASE("UMA newed vectors construct with default value", "[vector]",
 
 
 TEMPLATE_TEST_CASE("HostOnly newed vectors construct with default value", "[vector]",
-    simt::memory::managed_allocator<int>,
-    simt::memory::device_allocator<int>,
+    mirror::managed_allocator<int>,
+    mirror::device_allocator<int>,
     std::allocator<int>) {
 
-    using VectorType = simt::containers::vector<int, TestType, simt::memory::OverloadNewType::eHostOnly>;
+    using VectorType = mirror::vector<int, TestType, mirror::OverloadNewType::eHostOnly>;
     int setValue = 123;
     auto v = new VectorType(5, setValue);
 
-    if (std::is_same<simt::memory::device_allocator<int>, typename VectorType::allocator_type>::value) {
+    if (std::is_same<mirror::device_allocator<int>, typename VectorType::allocator_type>::value) {
         std::vector<int> host_data(5);
         cudaMemcpy(host_data.data(), v->data(), sizeof(int)*v->size(), cudaMemcpyDeviceToHost);
 
@@ -146,15 +146,15 @@ TEMPLATE_TEST_CASE("HostOnly newed vectors construct with default value", "[vect
 
 
 TEMPLATE_TEST_CASE("MaybeOwner can be used with vectors", "[vector][maybe_owner]",
-    simt::memory::managed_allocator<int>,
-    simt::memory::device_allocator<int>,
+    mirror::managed_allocator<int>,
+    mirror::device_allocator<int>,
     std::allocator<int>) {
 
-    using VectorType = simt::containers::vector<int, TestType, simt::memory::OverloadNewType::eManaged>;
+    using VectorType = mirror::vector<int, TestType, mirror::OverloadNewType::eManaged>;
     int setValue = 123;
-    simt::memory::MaybeOwner<VectorType> v(new VectorType(5, setValue));
+    mirror::MaybeOwner<VectorType> v(new VectorType(5, setValue));
 
-    if (std::is_same<simt::memory::device_allocator<int>, typename VectorType::allocator_type>::value) {
+    if (std::is_same<mirror::device_allocator<int>, typename VectorType::allocator_type>::value) {
         std::vector<int> host_data(5);
         cudaMemcpy(host_data.data(), v->data(), sizeof(int)*v->size(), cudaMemcpyDeviceToHost);
 

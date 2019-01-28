@@ -24,7 +24,7 @@ enum SimpleTypes {
     Max_
 };
 
-class SimpleBaseTest : public simt::serialization::Serializable<SimpleTypes> {
+class SimpleBaseTest : public mirror::Serializable<SimpleTypes> {
 public:
     HOSTDEVICE virtual ~SimpleBaseTest() { ; }
 
@@ -41,12 +41,12 @@ public:
         return j;
     }
 
-    HOST void write(simt::serialization::serializer & io) const override {
+    HOST void write(mirror::serializer & io) const override {
         io.write(j);
     }
 
-    HOSTDEVICE void read(simt::serialization::serializer::size_type startPosition,
-        simt::serialization::serializer & io) override {
+    HOSTDEVICE void read(mirror::serializer::size_type startPosition,
+        mirror::serializer & io) override {
         io.read(startPosition, &j);
     }
 
@@ -59,7 +59,7 @@ private:
 };
 
 template <>
-struct simt::serialization::polymorphic_traits<SimpleBaseTest> {
+struct mirror::polymorphic_traits<SimpleBaseTest> {
     using size_type = std::size_t;
     using pointer = SimpleBaseTest * ;
     using enum_type = SimpleTypes;
@@ -73,7 +73,7 @@ struct simt::serialization::polymorphic_traits<SimpleBaseTest> {
         switch (p->type()) {
         #define ENTRY(a, b) \
         case enum_type::a: \
-            cache[enum_type::a] = simt::utilities::getDeviceSize<b>(); \
+            cache[enum_type::a] = mirror::getDeviceSize<b>(); \
             return cache[enum_type::a];
             ALLTest_SIMPLE_TYPES
         #undef ENTRY
@@ -83,9 +83,9 @@ struct simt::serialization::polymorphic_traits<SimpleBaseTest> {
         }
     }
 
-    static HOSTDEVICE void create(simt::containers::vector<pointer> & device_objs, simt::serialization::serializer & io) {
-        auto tid = simt::utilities::getTID();
-        auto stride = simt::utilities::gridStride();
+    static HOSTDEVICE void create(mirror::vector<pointer> & device_objs, mirror::serializer & io) {
+        auto tid = mirror::getTID();
+        auto stride = mirror::gridStride();
 
         for (; tid < device_objs.size(); tid += stride) {
             auto startPosition = io.mark_position(tid);
@@ -96,7 +96,7 @@ struct simt::serialization::polymorphic_traits<SimpleBaseTest> {
 
             #define ENTRY(a, b) \
             case enum_type::a: \
-                simt::serialization::construct_obj<b>(device_objs[tid]); \
+                mirror::construct_obj<b>(device_objs[tid]); \
                 break;
                     SIMPLETest_CONCRETE_TYPES
             #undef ENTRY
@@ -113,11 +113,11 @@ struct simt::serialization::polymorphic_traits<SimpleBaseTest> {
     }
 };
 
-size_t simt::serialization::polymorphic_traits<SimpleBaseTest>::cache[enum_type::Max_];
+size_t mirror::polymorphic_traits<SimpleBaseTest>::cache[enum_type::Max_];
 
 __global__
-void getValues(simt::containers::vector<SimpleBaseTest*> const* objs, simt::containers::vector<double> & outVals) {
-    auto tid = simt::utilities::getTID();
+void getValues(mirror::vector<SimpleBaseTest*> const* objs, mirror::vector<double> & outVals) {
+    auto tid = mirror::getTID();
     if (tid == 0) {
         size_t i = 0;
         for (auto const& o : *objs) {
@@ -130,8 +130,8 @@ TEST_CASE("Can mirror polymorphic objects") {
     std::vector<SimpleBaseTest*> host_objs;
     host_objs.push_back(new SimpleDerivedTest(123));
 
-    simt::serialization::polymorphic_mirror<SimpleBaseTest> device_objs(host_objs);
-    simt::memory::MaybeOwner<simt::containers::vector<double>> out(new simt::containers::vector<double>(host_objs.size(), 0));
+    mirror::polymorphic_mirror<SimpleBaseTest> device_objs(host_objs);
+    mirror::MaybeOwner<mirror::vector<double>> out(new mirror::vector<double>(host_objs.size(), 0));
     getValues<<<1, 1>>>(device_objs.get(), *out);
     simt_sync;
 

@@ -23,9 +23,9 @@
  *
  */
 
-class DataStore : public simt::memory::Managed {
+class DataStore : public mirror::Managed {
     using Real = double;
-    using vector_t = simt::containers::vector<Real>;
+    using vector_t = mirror::vector<Real>;
 
 public:
     HOST DataStore(size_t nParticles) : m_nParticles(nParticles), 
@@ -93,13 +93,13 @@ public:
 
 private:
     size_t m_nParticles;
-    simt::memory::MaybeOwner<vector_t> m_x;
-    simt::memory::MaybeOwner<vector_t> m_y;
-    simt::memory::MaybeOwner<vector_t> m_z;
+    mirror::MaybeOwner<vector_t> m_x;
+    mirror::MaybeOwner<vector_t> m_y;
+    mirror::MaybeOwner<vector_t> m_z;
 
-    simt::memory::MaybeOwner<vector_t> m_Vx;
-    simt::memory::MaybeOwner<vector_t> m_Vy;
-    simt::memory::MaybeOwner<vector_t> m_Vz;
+    mirror::MaybeOwner<vector_t> m_Vx;
+    mirror::MaybeOwner<vector_t> m_Vy;
+    mirror::MaybeOwner<vector_t> m_Vz;
 };
 
 
@@ -114,8 +114,8 @@ void integrateTo_cpu(double dt, ParticleContainer const* particles, DataStore * 
 
 template <typename ParticleContainer>
 DEVICE void integrateTo_gpu(double dt, ParticleContainer const* particles, DataStore * store) {
-    auto tid = simt::utilities::getTID();
-    auto stride = simt::utilities::gridStride();
+    auto tid = mirror::getTID();
+    auto stride = mirror::gridStride();
 
     for (; tid < particles->size(); tid += stride) {
         integrateTo(dt, particles, store, tid);
@@ -164,7 +164,7 @@ HOSTDEVICE void integrateTo(double dt, ParticleContainer const* particles, DataS
     }
 }
 
-__global__ void call_integrateTo(double dt, simt::containers::vector<Particle*> const* particles, DataStore * store) {
+__global__ void call_integrateTo(double dt, mirror::vector<Particle*> const* particles, DataStore * store) {
     integrateTo_gpu(dt, particles, store);
 }
 
@@ -209,7 +209,7 @@ public:
         for (auto i = 0; i < N; ++i)
             host_particles.push_back(new ParticleTriangle(5, 2));
 
-        device_particles = new simt::serialization::polymorphic_mirror<Particle>(host_particles);
+        device_particles = new mirror::polymorphic_mirror<Particle>(host_particles);
 
         nParticles = host_particles.size();
         store = new DataStore(nParticles);
@@ -227,7 +227,7 @@ public:
 
     size_t nParticles;
     std::vector<Particle*> host_particles;
-    simt::serialization::polymorphic_mirror<Particle> * device_particles;
+    mirror::polymorphic_mirror<Particle> * device_particles;
     std::pair<double, std::vector<double>> last_checkpoint;
     DataStore * store = nullptr;
 };

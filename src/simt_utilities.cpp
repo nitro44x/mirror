@@ -12,8 +12,7 @@ void assert_(cudaError_t code, const char *file, int line) {
     abort();
 }
 
-namespace simt {
-    namespace utilities {
+namespace mirror {
         HOSTDEVICE int getTID() {
             #ifdef __CUDA_ARCH__
             return (int)(threadIdx.x + blockIdx.x * blockDim.x);
@@ -29,5 +28,4 @@ namespace simt {
             return 1;
             #endif
         }
-    }
 }

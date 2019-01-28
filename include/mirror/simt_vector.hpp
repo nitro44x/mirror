@@ -6,9 +6,7 @@
 
 #include <algorithm>
 
-namespace simt {
-
-    namespace containers {
+namespace mirror {
 
         template <typename T>
         class vectorIter {
@@ -64,13 +62,13 @@ namespace simt {
 
 
         template <typename T> struct allowed_new_overloads_vector { using is_whitelisted = std::false_type; };
-        template <> struct allowed_new_overloads_vector<simt::memory::HostOnly> { using is_whitelisted = std::true_type; };
-        template <> struct allowed_new_overloads_vector<simt::memory::Managed> { using is_whitelisted = std::true_type; };
+        template <> struct allowed_new_overloads_vector<mirror::HostOnly> { using is_whitelisted = std::true_type; };
+        template <> struct allowed_new_overloads_vector<mirror::Managed> { using is_whitelisted = std::true_type; };
 
         template <typename T,
-            class Alloc = simt::memory::managed_allocator<T>,
-            simt::memory::OverloadNewType New_t = simt::memory::OverloadNewType::eManaged>
-            class vector final : public simt::memory::Overload_trait_t<New_t>::type {
+            class Alloc = mirror::managed_allocator<T>,
+            mirror::OverloadNewType New_t = mirror::OverloadNewType::eManaged>
+            class vector final : public mirror::Overload_trait_t<New_t>::type {
             public:
                 using value_type = T;
                 using allocator_type = Alloc;
@@ -85,11 +83,11 @@ namespace simt {
                 using reverse_iterator = std::reverse_iterator<iterator>;
                 using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
-                using is_whitelisted = allowed_new_overloads_vector<simt::memory::Overload_trait_t<New_t>::type>::is_whitelisted;
+                using is_whitelisted = allowed_new_overloads_vector<mirror::Overload_trait_t<New_t>::type>::is_whitelisted;
                 static_assert(is_whitelisted::value, "Invalid new/delete overload for a vector, cannot use device only overload");
 
 
-                static const simt::memory::OverloadNewType memory_type = New_t;
+                static const mirror::OverloadNewType memory_type = New_t;
 
             public:
                 vector() = default;
@@ -98,7 +96,7 @@ namespace simt {
 
                 HOST vector(size_type nElements, value_type initValue) : vector(nElements) {
                     // \todo Find a way to do this if/else at compile time.
-                    if (std::is_same<simt::memory::device_allocator<T>, allocator_type>::value) {
+                    if (std::is_same<mirror::device_allocator<T>, allocator_type>::value) {
                         setAllTo<<<128,128>>>(m_data, m_data + sizeof(T)*m_size, initValue);
                         simt_sync;
                     }
@@ -212,7 +210,7 @@ namespace simt {
 
                 HOST static void internal_memcpy(pointer dst, pointer src, size_type nElements) {
                     // \todo Find a way to do this at compile time.
-                    if (std::is_same<simt::memory::device_allocator<T>, allocator_type>::value) {
+                    if (std::is_same<mirror::device_allocator<T>, allocator_type>::value) {
                         cudaMemcpy(dst, src, sizeof(T) * nElements, cudaMemcpyDeviceToDevice);
                     }
                     else {
@@ -222,7 +220,7 @@ namespace simt {
 
                 HOST void internal_setValue(size_type index, T value) {
                     // \todo Find a way to do this at compile time.
-                    if (std::is_same<simt::memory::device_allocator<T>, allocator_type>::value) {
+                    if (std::is_same<mirror::device_allocator<T>, allocator_type>::value) {
                         setIndexTo << <1, 1 >> > (data() + index, value);
                         simt_sync;
                     }
@@ -236,5 +234,4 @@ namespace simt {
                 size_type m_size = 0;
                 size_type m_capacity = 0;
         };
-    }
 }
