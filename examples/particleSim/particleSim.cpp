@@ -226,7 +226,7 @@ public:
     }
 
     size_t nParticles;
-    std::vector<Particle*> host_particles;
+    mirror::vector<Particle*, std::allocator<Particle*>, mirror::OverloadNewType::eHostOnly> host_particles;
     mirror::polymorphic_mirror<Particle> * device_particles;
     std::pair<double, std::vector<double>> last_checkpoint;
     DataStore * store = nullptr;

@@ -171,30 +171,12 @@ namespace mirror {
 
         public:
             HOST polymorphic_mirror(std::vector<pointer> const& host_objs) : m_deviceObjs(new mirror::vector<pointer>(host_objs.size(), nullptr)) {
-                mirror::MaybeOwner<serializer> io(new serializer(startingBufferSize));
+                init(host_objs);
+            }
 
-                for (auto obj : host_objs) {
-                    io->mark();
-                    io->write(obj->type());
-                    obj->write(*io);
-                }
-
-                auto sizeofFold = [](size_t currentTotal, pointer p) {
-                    return currentTotal + polymorphic_traits<T>::sizeOf(p);
-                };
-
-                auto totalSpaceNeeded_bytes = std::accumulate(host_objs.begin(), host_objs.end(), size_t(0), sizeofFold);
-
-                m_tank.setData(new tank_type(totalSpaceNeeded_bytes, '\0'));
-
-                size_t offset = 0;
-                for (size_t i = 0; i < host_objs.size(); ++i) {
-                    (*m_deviceObjs)[i] = (pointer)(m_tank->data() + offset);
-                    offset += polymorphic_traits<T>::sizeOf(host_objs[i]);
-                }
-                    
-                constructDeviceObjs<<<nBlocks, nThreadsPerBlock>>>(*m_deviceObjs, *io);
-                mirror_sync;
+            template <typename Alloc, mirror::OverloadNewType New_t>
+            HOST polymorphic_mirror(mirror::vector<pointer, Alloc, New_t> const& host_objs) : m_deviceObjs(new mirror::vector<pointer>(host_objs.size(), nullptr)) {
+                init(host_objs);
             }
 
             HOST ~polymorphic_mirror() {
@@ -233,6 +215,34 @@ namespace mirror {
             HOSTDEVICE const_iterator end() const { return m_deviceObjs->end(); }
 
         private:
+            template <typename Container>
+            HOST void init(Container const& host_objs) {
+                mirror::MaybeOwner<serializer> io(new serializer(startingBufferSize));
+
+                for (auto obj : host_objs) {
+                    io->mark();
+                    io->write(obj->type());
+                    obj->write(*io);
+                }
+
+                auto sizeofFold = [](size_t currentTotal, pointer p) {
+                    return currentTotal + polymorphic_traits<T>::sizeOf(p);
+                };
+
+                auto totalSpaceNeeded_bytes = std::accumulate(host_objs.begin(), host_objs.end(), size_t(0), sizeofFold);
+
+                m_tank.setData(new tank_type(totalSpaceNeeded_bytes, '\0'));
+
+                size_t offset = 0;
+                for (size_t i = 0; i < host_objs.size(); ++i) {
+                    (*m_deviceObjs)[i] = (pointer)(m_tank->data() + offset);
+                    offset += polymorphic_traits<T>::sizeOf(host_objs[i]);
+                }
+
+                constructDeviceObjs << <nBlocks, nThreadsPerBlock >> > (*m_deviceObjs, *io);
+                mirror_sync;
+            }
+
             constexpr static size_t nBlocks = 128;
             constexpr static size_t nThreadsPerBlock = 128;
 

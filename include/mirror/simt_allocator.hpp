@@ -113,8 +113,16 @@ namespace mirror {
             }
         };
 
-        // Provided for symmetry
-        class HostOnly { };
+        class HostOnly {
+        public:
+            void *operator new(size_t len) {
+                return malloc(len);
+            }
+
+            void operator delete(void *ptr) {
+                free(ptr);
+            }
+        };
 
         enum class OverloadNewType {
             eManaged = 0,
