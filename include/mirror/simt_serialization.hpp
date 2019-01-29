@@ -194,12 +194,12 @@ namespace mirror {
                 }
                     
                 constructDeviceObjs<<<nBlocks, nThreadsPerBlock>>>(*m_deviceObjs, *io);
-                simt_sync;
+                mirror_sync;
             }
 
             HOST ~polymorphic_mirror() {
                 destructDeviceObjs<<<nBlocks, nThreadsPerBlock>>>(*m_deviceObjs);
-                simt_sync;
+                mirror_sync;
             }
 
             HOSTDEVICE array_pointer get() const {

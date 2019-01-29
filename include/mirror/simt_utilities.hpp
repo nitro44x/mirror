@@ -22,7 +22,7 @@ namespace mirror {
             size_t * size = nullptr;
             cudaMallocManaged((void**)&size, sizeof(size_t));
             compute_sizeof<T><<<1,1>>> (size);
-            simt_sync;
+            mirror_sync;
             auto const result = *size;
             cudaFree(size);
             return result;

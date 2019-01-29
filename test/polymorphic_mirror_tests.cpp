@@ -133,7 +133,7 @@ TEST_CASE("Can mirror polymorphic objects") {
     mirror::polymorphic_mirror<SimpleBaseTest> device_objs(host_objs);
     mirror::MaybeOwner<mirror::vector<double>> out(new mirror::vector<double>(host_objs.size(), 0));
     getValues<<<1, 1>>>(device_objs.get(), *out);
-    simt_sync;
+    mirror_sync;
 
     size_t i = 0;
     for (auto const& o : host_objs)

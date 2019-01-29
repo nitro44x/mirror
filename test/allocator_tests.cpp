@@ -20,7 +20,7 @@ TEST_CASE("std::vector can use UMA allocator", "[allocator]") {
     REQUIRE_NOTHROW(v.resize(10));
 
     setArrayTo<<<1,1>>>(v.data(), v.size(), 123);
-    simt_sync;
+    mirror_sync;
 
     for (auto const& value : v)
         REQUIRE(value == 123.0_a);
@@ -60,7 +60,7 @@ TEST_CASE("Overloading new/delete with UMA", "[overload_new_delete]") {
     auto data = new someData<mirror::Managed>;
     char value = 'A';
     setSomeData<<<1,1>>>(data, value);
-    simt_sync;
+    mirror_sync;
 
     REQUIRE(data->a == (double)value);
     REQUIRE(data->b == (int)value);
@@ -73,7 +73,7 @@ TEST_CASE("Overloading new/delete with device-only", "[overload_new_delete]") {
     auto data = new someData<mirror::DeviceOnly>;
     char value = 'A';
     setSomeData<<<1,1>>>(data, value);
-    simt_sync;
+    mirror_sync;
 
     someData<mirror::HostOnly> data_host;
 

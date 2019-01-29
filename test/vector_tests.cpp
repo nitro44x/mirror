@@ -104,13 +104,13 @@ TEST_CASE("Benchmark vector push_back", "[vector][benchmark]") {
         v = VectorType();
         for (int i = 0; i < size; ++i)
             v.push_back(i);
-        simt_sync;
+        mirror_sync;
     }
     REQUIRE(v.size() == size);
 
     BENCHMARK("Init a vector with a value") {
         v = VectorType(size, 123);
-        simt_sync;
+        mirror_sync;
     }
     REQUIRE(v.size() == size);
 }

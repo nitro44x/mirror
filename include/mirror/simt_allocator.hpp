@@ -32,9 +32,7 @@ namespace mirror {
             HOSTDEVICE T* allocate(std::size_t n) {
                 #ifndef __CUDA_ARCH__
                 void* out = nullptr;
-                simt_check(cudaMallocManaged(&out, n * sizeof(T)));
-                simt_sync;
-                //memset(out, 0, n * sizeof(T));
+                mirror_check(cudaMallocManaged(&out, n * sizeof(T)));
                 return static_cast<T*>(out);
                 #else
                 return nullptr;
@@ -44,8 +42,7 @@ namespace mirror {
 
             HOSTDEVICE void deallocate(T* p, std::size_t) noexcept {
                 #ifndef __CUDA_ARCH__
-                simt_sync;
-                simt_check(cudaFree(p));
+                mirror_check(cudaFree(p));
                 #endif
             }
 
@@ -70,8 +67,8 @@ namespace mirror {
             HOSTDEVICE T* allocate(std::size_t n) {
                 #ifndef __CUDA_ARCH__
                 void* out = nullptr;
-                simt_check(cudaMalloc(&out, n * sizeof(T)));
-                simt_check(cudaMemset(out, 0, n * sizeof(T)));
+                mirror_check(cudaMalloc(&out, n * sizeof(T)));
+                mirror_check(cudaMemset(out, 0, n * sizeof(T)));
                 return static_cast<T*>(out);
                 #else
                 return nullptr;
@@ -80,7 +77,7 @@ namespace mirror {
 
             HOSTDEVICE void deallocate(T* p, std::size_t) noexcept {
                 #ifndef __CUDA_ARCH__
-                simt_check(cudaFree(p));
+                mirror_check(cudaFree(p));
                 #endif          
             }
 
@@ -90,14 +87,14 @@ namespace mirror {
         public:
             void *operator new(size_t len) {
                 void *ptr;
-                simt_check(cudaMallocManaged(&ptr, len));
-                simt_sync;
+                mirror_check(cudaMallocManaged(&ptr, len));
+                mirror_sync;
                 return ptr;
             }
 
             void operator delete(void *ptr) {
-                simt_sync;
-                simt_check(cudaFree(ptr));
+                mirror_sync;
+                mirror_check(cudaFree(ptr));
             }
         };
 
@@ -105,14 +102,14 @@ namespace mirror {
         public:
             void *operator new(size_t len) {
                 void *ptr;
-                simt_check(cudaMalloc(&ptr, len));
-                simt_sync;
+                mirror_check(cudaMalloc(&ptr, len));
+                mirror_sync;
                 return ptr;
             }
 
             void operator delete(void *ptr) {
-                simt_sync;
-                simt_check(cudaFree(ptr));
+                mirror_sync;
+                mirror_check(cudaFree(ptr));
             }
         };
 

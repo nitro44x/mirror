@@ -252,13 +252,13 @@ void simple_particle_test_gpu(size_t N, size_t outputInterval) {
         call_integrateTo<<<nBlocks, nThreadsPerBlock>>>(dt, sim.device_particles->get(), sim.store);
 
         if (iteration % 5 == 0) {
-            simt_sync;
+            mirror_sync;
             //std::cout << "iter " << iteration << ": " << currentTime << std::endl;
             sim.checkpoint(currentTime);
         }
     }
 
-    simt_sync;
+    mirror_sync;
 
     auto stop = std::chrono::high_resolution_clock::now();
 

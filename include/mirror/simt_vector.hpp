@@ -98,7 +98,7 @@ namespace mirror {
                     // \todo Find a way to do this if/else at compile time.
                     if (std::is_same<mirror::device_allocator<T>, allocator_type>::value) {
                         setAllTo<<<128,128>>>(m_data, m_data + sizeof(T)*m_size, initValue);
-                        simt_sync;
+                        mirror_sync;
                     }
                     else {
                         for (size_type i = 0; i < nElements; ++i)
@@ -222,7 +222,7 @@ namespace mirror {
                     // \todo Find a way to do this at compile time.
                     if (std::is_same<mirror::device_allocator<T>, allocator_type>::value) {
                         setIndexTo << <1, 1 >> > (data() + index, value);
-                        simt_sync;
+                        mirror_sync;
                     }
                     else {
                         this->operator[](size()) = value;
