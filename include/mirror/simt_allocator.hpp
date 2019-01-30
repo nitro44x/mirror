@@ -176,6 +176,7 @@ namespace mirror {
             // mean we are depending on the destructor of T to be HOST only as well
             HOSTDEVICE ~MaybeOwner() {
                 #ifndef __CUDA_ARCH__
+                mirror_sync;
                 if (m_owner && m_data)
                     delete m_data;
                 #endif

@@ -1,3 +1,5 @@
+#include <catch/catch.hpp>
+
 #include "Particle.hpp"
 
 #include <mirror/simt_macros.hpp>
@@ -13,6 +15,8 @@
 #include <iomanip>
 #include <fstream>
 #include <chrono>
+
+using namespace Catch;
 
 /*
  *  Particle Particle test
@@ -201,7 +205,7 @@ void print_headers(std::ostream & out, size_t nParticles) {
 class simulation {
 public:
 
-    simulation(size_t N) : host_particles(), device_particles() {
+    simulation(size_t N, bool setupProblem = true) : host_particles(), device_particles() {
         for (auto i = 0; i < N; ++i)
             host_particles.push_back(new ParticleCircle(1.0));
         for (auto i = 0; i < N; ++i)
@@ -213,7 +217,8 @@ public:
 
         nParticles = host_particles.size();
         store = new DataStore(nParticles);
-        store->setup_random_distribution();
+        if(setupProblem)
+            store->setup_random_distribution();
     }
 
     void checkpoint(double time) {
@@ -232,77 +237,48 @@ public:
     DataStore * store = nullptr;
 };
 
-size_t simple_particle_test_gpu(size_t N, size_t nIterations, size_t outputInterval) {
-    auto start = std::chrono::high_resolution_clock::now();
-    simulation sim(N);
-    auto setup = std::chrono::high_resolution_clock::now();
 
+TEST_CASE("Simple particle trajectory benchmarks", "[particleSim][benchmark]") {
+    
+    size_t const nParticles = 1000000;
+    size_t const nIterations = 10000;
+    size_t const checkpointInterval = 1000;
 
-    int numSMs;
-    cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0);
-
-    auto const nBlocks = 32 * numSMs;
+    auto const nBlocks = 256;
     auto const nThreadsPerBlock = 256;
-
-    //auto & out = std::cout;
-    //std::ofstream out("particle_trajectories.csv");
-    //print_headers(out, sim.nParticles);
-
     double const dt = 1e-4;
     double currentTime = 0;
-    for(size_t iteration = 0; iteration < nIterations; ++iteration) {
-        currentTime += dt;
-        call_integrateTo<<<nBlocks, nThreadsPerBlock>>>(dt, sim.device_particles->get(), sim.store);
 
-        if (iteration % outputInterval == 0) {
-            mirror_sync;
-            //std::cout << "iter " << iteration << ": " << currentTime << std::endl;
-            sim.checkpoint(currentTime);
+    BENCHMARK("Setup Problem (polymorphic mirroring)") {
+        simulation sim(nParticles, false);
+    }
+
+    {
+        simulation sim(nParticles);
+        BENCHMARK("GPU with UMA") {
+            for (size_t iteration = 0; iteration < nIterations; ++iteration) {
+                currentTime += dt;
+                call_integrateTo<<<nBlocks, nThreadsPerBlock>>>(dt, sim.device_particles->get(), sim.store);
+
+                if (iteration % checkpointInterval == 0) {
+                    mirror_sync;
+                    sim.checkpoint(currentTime);
+                }
+            }
         }
     }
 
-    mirror_sync;
+    {
+        simulation sim(nParticles);
+        BENCHMARK("CPU with OMP") {
+            for (size_t iteration = 0; iteration < nIterations; ++iteration) {
+                currentTime += dt;
+                integrateTo_cpu(dt, &(sim.host_particles), sim.store);
 
-    auto stop = std::chrono::high_resolution_clock::now();
-
-    std::cout << "Setup Time : " << std::chrono::duration_cast<std::chrono::seconds>(setup - start).count() << std::endl;
-    std::cout << "Run Time : " << std::chrono::duration_cast<std::chrono::seconds>(stop - setup).count() << std::endl;
-    return std::chrono::duration_cast<std::chrono::seconds>(stop - setup).count();
-}
-
-
-size_t simple_particle_test_cpu(size_t N, size_t nIterations, size_t outputInterval) {
-    auto start = std::chrono::high_resolution_clock::now();
-    simulation sim(N);
-    auto setup = std::chrono::high_resolution_clock::now();
-
-    //auto & out = std::cout;
-    //std::ofstream out("particle_trajectories.csv");
-    //print_headers(out, sim.nParticles);
-
-    double const dt = 1e-4;
-    double currentTime = 0;
-    for (size_t iteration = 0; iteration < nIterations; ++iteration) {
-        currentTime += dt;
-        integrateTo_cpu(dt, &(sim.host_particles), sim.store);
-
-        if (iteration % outputInterval == 0) {
-            //std::cout << "iter " << iteration << ": " << currentTime << std::endl;
-            sim.checkpoint(currentTime);
+                if (iteration % checkpointInterval == 0) {
+                    sim.checkpoint(currentTime);
+                }
+            }
         }
     }
-    auto stop = std::chrono::high_resolution_clock::now();
-
-    std::cout << "Setup Time : " << std::chrono::duration_cast<std::chrono::seconds>(setup - start).count() << std::endl;
-    std::cout << "Run Time : " << std::chrono::duration_cast<std::chrono::seconds>(stop - setup).count() << std::endl;
-    return std::chrono::duration_cast<std::chrono::seconds>(stop - setup).count();
-}
-
-int main() {
-    size_t const N = 10000;
-    size_t const nIterations = 1000000;
-    size_t const checkpointIterval = 10000;
-    auto cpu_time = (double) simple_particle_test_cpu(N, nIterations, checkpointIterval);
-    auto gpu_time = (double) simple_particle_test_gpu(N, nIterations, checkpointIterval);
-    std::cout << "Speedup = " << cpu_time / gpu_time << std::endl;
 }
