@@ -178,6 +178,10 @@ namespace mirror {
                     ++m_size;
                 }
 
+                HOSTDEVICE bool empty() const {
+                    return size() == 0;
+                }
+
                 HOSTDEVICE pointer data() const { return m_data; }
                 HOSTDEVICE size_type size() const { return m_size; }
                 HOSTDEVICE size_type capacity() const { return m_capacity; }
@@ -234,4 +238,8 @@ namespace mirror {
                 size_type m_size = 0;
                 size_type m_capacity = 0;
         };
+
+        template <typename T> using managed_vector = mirror::vector<T>;
+        template <typename T> using device_vector = mirror::vector<T, mirror::device_allocator<T>>;
+        template <typename T> using host_vector = mirror::vector<T, std::allocator<T>, mirror::OverloadNewType::eHostOnly>;
 }

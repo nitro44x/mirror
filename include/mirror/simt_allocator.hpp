@@ -173,7 +173,7 @@ namespace mirror {
             HOSTDEVICE MaybeOwner(T* p, bool takeOwnership = true) : m_data(p), m_owner(takeOwnership) {}
 
             // This being HOST only might mean we are safe on the GPU side, but it would 
-            // mean we are relaying on the destructor of T to be HOST only as well
+            // mean we are depending on the destructor of T to be HOST only as well
             HOSTDEVICE ~MaybeOwner() {
                 #ifndef __CUDA_ARCH__
                 if (m_owner && m_data)
@@ -229,15 +229,6 @@ namespace mirror {
 
             HOSTDEVICE const_iterator begin() const { return m_data->begin(); }
             HOSTDEVICE const_iterator end() const { return m_data->end(); }
-
-            HOSTDEVICE bool setData(T* data, bool takeOwnership = true) {
-                if (m_data && m_owner)
-                    return false;
-                m_data = data;
-                m_owner = takeOwnership;
-                return true;
-            }
-
 
         private:
             T* m_data = nullptr;

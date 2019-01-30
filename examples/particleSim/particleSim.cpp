@@ -25,7 +25,7 @@
 
 class DataStore : public mirror::Managed {
     using Real = double;
-    using vector_t = mirror::vector<Real>;
+    using vector_t = mirror::managed_vector<Real>;
 
 public:
     HOST DataStore(size_t nParticles) : m_nParticles(nParticles), 
@@ -164,7 +164,7 @@ HOSTDEVICE void integrateTo(double dt, ParticleContainer const* particles, DataS
     }
 }
 
-__global__ void call_integrateTo(double dt, mirror::vector<Particle*> const* particles, DataStore * store) {
+__global__ void call_integrateTo(double dt, mirror::managed_vector<Particle*> const* particles, DataStore * store) {
     integrateTo_gpu(dt, particles, store);
 }
 
@@ -226,32 +226,35 @@ public:
     }
 
     size_t nParticles;
-    mirror::vector<Particle*, std::allocator<Particle*>, mirror::OverloadNewType::eHostOnly> host_particles;
+    mirror::host_vector<Particle*> host_particles;
     mirror::polymorphic_mirror<Particle> * device_particles;
     std::pair<double, std::vector<double>> last_checkpoint;
     DataStore * store = nullptr;
 };
 
-void simple_particle_test_gpu(size_t N, size_t outputInterval) {
+size_t simple_particle_test_gpu(size_t N, size_t nIterations, size_t outputInterval) {
     auto start = std::chrono::high_resolution_clock::now();
     simulation sim(N);
     auto setup = std::chrono::high_resolution_clock::now();
 
-    auto const nBlocks = 128;
-    auto const nThreadsPerBlock = 128;
+
+    int numSMs;
+    cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0);
+
+    auto const nBlocks = 32 * numSMs;
+    auto const nThreadsPerBlock = 256;
 
     //auto & out = std::cout;
     //std::ofstream out("particle_trajectories.csv");
     //print_headers(out, sim.nParticles);
 
-    size_t nIterations = outputInterval;
     double const dt = 1e-4;
     double currentTime = 0;
     for(size_t iteration = 0; iteration < nIterations; ++iteration) {
         currentTime += dt;
         call_integrateTo<<<nBlocks, nThreadsPerBlock>>>(dt, sim.device_particles->get(), sim.store);
 
-        if (iteration % 5 == 0) {
+        if (iteration % outputInterval == 0) {
             mirror_sync;
             //std::cout << "iter " << iteration << ": " << currentTime << std::endl;
             sim.checkpoint(currentTime);
@@ -264,10 +267,11 @@ void simple_particle_test_gpu(size_t N, size_t outputInterval) {
 
     std::cout << "Setup Time : " << std::chrono::duration_cast<std::chrono::seconds>(setup - start).count() << std::endl;
     std::cout << "Run Time : " << std::chrono::duration_cast<std::chrono::seconds>(stop - setup).count() << std::endl;
+    return std::chrono::duration_cast<std::chrono::seconds>(stop - setup).count();
 }
 
 
-void simple_particle_test_cpu(size_t N, size_t outputInterval) {
+size_t simple_particle_test_cpu(size_t N, size_t nIterations, size_t outputInterval) {
     auto start = std::chrono::high_resolution_clock::now();
     simulation sim(N);
     auto setup = std::chrono::high_resolution_clock::now();
@@ -276,14 +280,13 @@ void simple_particle_test_cpu(size_t N, size_t outputInterval) {
     //std::ofstream out("particle_trajectories.csv");
     //print_headers(out, sim.nParticles);
 
-    size_t nIterations = outputInterval;
     double const dt = 1e-4;
     double currentTime = 0;
     for (size_t iteration = 0; iteration < nIterations; ++iteration) {
         currentTime += dt;
         integrateTo_cpu(dt, &(sim.host_particles), sim.store);
 
-        if (iteration % 5 == 0) {
+        if (iteration % outputInterval == 0) {
             //std::cout << "iter " << iteration << ": " << currentTime << std::endl;
             sim.checkpoint(currentTime);
         }
@@ -292,11 +295,14 @@ void simple_particle_test_cpu(size_t N, size_t outputInterval) {
 
     std::cout << "Setup Time : " << std::chrono::duration_cast<std::chrono::seconds>(setup - start).count() << std::endl;
     std::cout << "Run Time : " << std::chrono::duration_cast<std::chrono::seconds>(stop - setup).count() << std::endl;
+    return std::chrono::duration_cast<std::chrono::seconds>(stop - setup).count();
 }
 
 int main() {
     size_t const N = 10000;
-    size_t const checkpointIterval = 100;
-    simple_particle_test_cpu(N, checkpointIterval);
-    simple_particle_test_gpu(N, checkpointIterval);
+    size_t const nIterations = 1000000;
+    size_t const checkpointIterval = 10000;
+    auto cpu_time = (double) simple_particle_test_cpu(N, nIterations, checkpointIterval);
+    auto gpu_time = (double) simple_particle_test_gpu(N, nIterations, checkpointIterval);
+    std::cout << "Speedup = " << cpu_time / gpu_time << std::endl;
 }

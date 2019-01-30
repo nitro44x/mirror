@@ -106,23 +106,6 @@ TEST_CASE("MaybeOwner sematics work with standard containers", "[maybe_owner]") 
         REQUIRE(v2.isOwned() == true);
         REQUIRE(v.isOwned() == false);
     }
-
-    SECTION("Owning MaybeOwner cannot take new data.") {
-        auto v2 = std::move(v);
-        auto data = new std::vector<TestType>(5);
-        REQUIRE(v2.setData(new std::vector<TestType>(5)) == false);
-        REQUIRE(v2.isOwned() == true);
-        REQUIRE(v.isOwned() == false);
-        delete data;
-    }
-
-    SECTION("Setting data on not owned MaybeOwner moves the ownership.") {
-        auto v2 = std::move(v);
-        auto data = new std::vector<TestType>(5);
-        REQUIRE(v.setData(data) == true);
-        REQUIRE(v2.isOwned() == true);
-        REQUIRE(v.isOwned() == true);
-    }
 }
 
 static size_t nAlloc = 0;

@@ -170,12 +170,11 @@ namespace mirror {
             static_assert(std::is_base_of<Serializable<polymorphic_traits<T>::enum_type>, T>::value, "Object must inherit from mirror::Serializable");
 
         public:
-            HOST polymorphic_mirror(std::vector<pointer> const& host_objs) : m_deviceObjs(new mirror::vector<pointer>(host_objs.size(), nullptr)) {
+            HOST polymorphic_mirror(std::vector<pointer> const& host_objs) : m_deviceObjs(new mirror::vector<pointer>(host_objs.size(), nullptr)), m_tank() {
                 init(host_objs);
             }
 
-            template <typename Alloc, mirror::OverloadNewType New_t>
-            HOST polymorphic_mirror(mirror::vector<pointer, Alloc, New_t> const& host_objs) : m_deviceObjs(new mirror::vector<pointer>(host_objs.size(), nullptr)) {
+            HOST polymorphic_mirror(mirror::host_vector<pointer> const& host_objs) : m_deviceObjs(new mirror::vector<pointer>(host_objs.size(), nullptr)), m_tank() {
                 init(host_objs);
             }
 
@@ -200,10 +199,10 @@ namespace mirror {
                 return m_deviceObjs->operator[](index);
             }
 
-            //HOSTDEVICE bool operator==(polymorphic_mirror const& other) { return other.m_tank == m_tank; }
-            //HOSTDEVICE bool operator!=(polymorphic_mirror const& other) { return !(*this == other); }
+            HOSTDEVICE bool operator==(polymorphic_mirror const& other) { return other.m_tank.data() == m_tank.data(); }
+            HOSTDEVICE bool operator!=(polymorphic_mirror const& other) { return !(*this == other); }
 
-            HOSTDEVICE bool operator!() const { return !m_tank; }
+            HOSTDEVICE bool operator!() const { return !m_tank.empty(); }
 
             HOSTDEVICE array_type* operator->() { return &m_deviceObjs; }
             HOSTDEVICE array_type* operator->() const { return &m_deviceObjs; }
@@ -230,16 +229,15 @@ namespace mirror {
                 };
 
                 auto totalSpaceNeeded_bytes = std::accumulate(host_objs.begin(), host_objs.end(), size_t(0), sizeofFold);
-
-                m_tank.setData(new tank_type(totalSpaceNeeded_bytes, '\0'));
+                m_tank.resize(totalSpaceNeeded_bytes);
 
                 size_t offset = 0;
                 for (size_t i = 0; i < host_objs.size(); ++i) {
-                    (*m_deviceObjs)[i] = (pointer)(m_tank->data() + offset);
+                    (*m_deviceObjs)[i] = (pointer)(m_tank.data() + offset);
                     offset += polymorphic_traits<T>::sizeOf(host_objs[i]);
                 }
 
-                constructDeviceObjs << <nBlocks, nThreadsPerBlock >> > (*m_deviceObjs, *io);
+                constructDeviceObjs<<<nBlocks, nThreadsPerBlock>>>(*m_deviceObjs, *io);
                 mirror_sync;
             }
 
@@ -247,7 +245,7 @@ namespace mirror {
             constexpr static size_t nThreadsPerBlock = 128;
 
             using tank_type = mirror::vector<char, mirror::device_allocator<char>, mirror::OverloadNewType::eHostOnly>;
-            mirror::MaybeOwner<tank_type> m_tank;
+            tank_type m_tank;
 
             mirror::MaybeOwner<array_type> m_deviceObjs;
         };
