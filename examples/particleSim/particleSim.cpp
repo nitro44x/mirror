@@ -178,10 +178,38 @@ __global__ void call_integrateTo_byWarp(double dt, mirror::managed_vector<Partic
 
 template <typename ParticleContainer, typename Real, typename Alloc>
 void integrateTo_cpu(double dt, ParticleContainer const* particles, DataStore<Real, Alloc> * store) {
+    auto const size = particles->size();
+    
+    #pragma omp parallel for
+    for (int i = 0; i < size; ++i) {
+        integrateTo(dt, particles, store, i);
+    }
+}
+
+template <typename Real, typename Alloc>
+void integrateTo_withoutPolymorphic_cpu(double dt, mirror::managed_vector<ParticleTypes> const& particleTypes, 
+                                                   mirror::managed_vector<double> const& masses,
+                                                   mirror::managed_vector<double> const& data1, 
+                                                   mirror::managed_vector<double> const& data2, 
+                                                   DataStore<Real, Alloc> * store) {
 
     #pragma omp parallel for
-    for (int i = 0; i < particles->size(); ++i) {
-        integrateTo(dt, particles, store, i);
+    for (int i = 0; i < particleTypes.size(); ++i) {
+        integrateTo(dt, particleTypes, masses, data1, data2, store, i);
+    }
+}
+
+template <typename Real, typename Alloc>
+DEVICE void integrateTo_withoutPolymorphic_gpu(double dt, mirror::managed_vector<ParticleTypes> const& particleTypes, 
+                                                          mirror::managed_vector<double> const& masses, 
+                                                          mirror::managed_vector<double> const& data1, 
+                                                          mirror::managed_vector<double> const& data2,
+                                                          DataStore<Real, Alloc> * store) {
+    auto tid = mirror::getTID();
+    auto stride = mirror::gridStride();
+
+    for (; tid < particleTypes.size(); tid += stride) {
+        integrateTo(dt, particleTypes, masses, data1, data2, store, tid);
     }
 }
 
@@ -235,6 +263,74 @@ HOSTDEVICE void integrateTo(double dt, ParticleContainer const* particles, DataS
         store->Vy(tid, 0);
         store->Vz(tid, 0);
     }
+}
+
+// data1 and data2 are just internal data that each virtual class used. I'm lazy and am just passing these as arrays
+template <typename ParticleTypeContainer, typename Real, typename Alloc>
+HOSTDEVICE void integrateTo(double dt, ParticleTypeContainer const& particleTypes, 
+                            mirror::managed_vector<double> const& masses, 
+                            mirror::managed_vector<double> const& data1, 
+                            mirror::managed_vector<double> const& data2, 
+                            DataStore<Real, Alloc> * store, size_t tid) {
+    double const rho = 1.0;
+    double const g = -9.8;
+
+    double const x = store->x(tid);
+    double const y = store->y(tid);
+    double const z = store->z(tid);
+    double const Vx = store->Vx(tid);
+    double const Vy = store->Vy(tid);
+    double const Vz = store->Vz(tid);
+
+    double area = 0.0;
+    switch (particleTypes[tid]) {
+    case ParticleTypes::eParticleCircle:
+        area = data1[tid] * data1[tid] * 3.1415;
+        break;
+    case ParticleTypes::eParticleSquare:
+        area = data1[tid] * data1[tid];
+        break;
+    case ParticleTypes::eParticleTriangle:
+        area = 0.5 * data1[tid] * data2[tid];
+        break;
+    }
+
+    double const mass = masses[tid];
+    double const massInv = 1.0 / mass;
+
+    double const xNew = x + dt * Vx;
+    double const yNew = y + dt * Vy;
+    double const zNew = z + dt * Vz;
+
+    if (zNew > 0) {
+        double const VxNew = Vx + dt * (-0.5 * Vx * rho * area) * massInv;
+        double const VyNew = Vy + dt * (-0.5 * Vy * rho * area) * massInv;
+        double const VzNew = Vz + dt * (mass * g - 0.5 * Vz * rho * area) * massInv;
+
+        store->x(tid, xNew);
+        store->y(tid, yNew);
+        store->z(tid, zNew);
+        store->Vx(tid, VxNew);
+        store->Vy(tid, VyNew);
+        store->Vz(tid, VzNew);
+    }
+    else {
+        store->x(tid, xNew);
+        store->y(tid, yNew);
+        store->z(tid, zNew);
+        store->Vx(tid, 0);
+        store->Vy(tid, 0);
+        store->Vz(tid, 0);
+    }
+}
+
+template <typename Real, typename Alloc>
+__global__ void call_integrateTo_withoutPolymorphic(double dt, mirror::managed_vector<ParticleTypes> const& particleTypes, 
+                                                    mirror::managed_vector<double> const& masses,
+                                                    mirror::managed_vector<double> const& data1, 
+                                                    mirror::managed_vector<double> const& data2, 
+                                                    DataStore<Real, Alloc> * store) {
+    integrateTo_withoutPolymorphic_gpu(dt, particleTypes, masses, data1, data2, store);
 }
 
 template <typename Real, typename Alloc>
@@ -297,6 +393,34 @@ public:
         last_checkpoint = std::make_pair( time, store->snapshot());
     }
 
+    void setup_nonVirtualArrays() {
+        types = mirror::MaybeOwner<mirror::managed_vector<ParticleTypes>>(new mirror::managed_vector<ParticleTypes>(host_particles.size()));
+        masses = mirror::MaybeOwner<mirror::managed_vector<double>>(new mirror::managed_vector<double>(host_particles.size()));
+        data1 = mirror::MaybeOwner<mirror::managed_vector<double>>(new mirror::managed_vector<double>(host_particles.size()));
+        data2 = mirror::MaybeOwner<mirror::managed_vector<double>>(new mirror::managed_vector<double>(host_particles.size()));
+
+
+        for (size_t i = 0; i < host_particles.size(); ++i) {
+            switch (host_particles[i]->type()) {
+            case ParticleTypes::eParticleCircle:
+                types[i] = ParticleTypes::eParticleCircle;
+                data1[i] = 1.0;
+                data2[i] = 0;
+                break;
+            case ParticleTypes::eParticleSquare:
+                types[i] = ParticleTypes::eParticleSquare;
+                data1[i] = 2.0;
+                data2[i] = 0;
+                break;
+            case ParticleTypes::eParticleTriangle:
+                types[i] = ParticleTypes::eParticleTriangle;
+                data1[i] = 5;
+                data2[i] = 2;
+                break;
+            }
+        }
+    }
+
     ~simulation() {
         delete store;
         delete device_particles;
@@ -307,6 +431,10 @@ public:
     mirror::polymorphic_mirror<Particle> * device_particles;
     std::pair<double, std::vector<double>> last_checkpoint;
     DataStore<Real, Alloc> * store = nullptr;
+    mirror::MaybeOwner<mirror::managed_vector<ParticleTypes>> types;
+    mirror::MaybeOwner<mirror::managed_vector<double>> masses;
+    mirror::MaybeOwner<mirror::managed_vector<double>> data1;
+    mirror::MaybeOwner<mirror::managed_vector<double>> data2;
 };
 
 
@@ -367,6 +495,38 @@ TEST_CASE("Simple particle trajectory benchmarks", "[particleSim][benchmark]") {
             for (size_t iteration = 0; iteration < nIterations; ++iteration) {
                 currentTime += dt;
                 call_integrateTo_byWarp<<<nBlocks, nThreadsPerBlock>>>(dt, sim.device_particles->get(), sim.store);
+
+                if (iteration % checkpointInterval == 0) {
+                    mirror_sync;
+                    sim.checkpoint(currentTime);
+                }
+            }
+        }
+    }
+
+    {
+        simulation<double> sim(nParticles);
+        sim.setup_nonVirtualArrays();
+        BENCHMARK("GPU with UMA without polymorphic functions") {
+            for (size_t iteration = 0; iteration < nIterations; ++iteration) {
+                currentTime += dt;
+                call_integrateTo_withoutPolymorphic<<<nBlocks, nThreadsPerBlock>>>(dt, *sim.types, *sim.masses, *sim.data1, *sim.data2 , sim.store);
+
+                if (iteration % checkpointInterval == 0) {
+                    mirror_sync;
+                    sim.checkpoint(currentTime);
+                }
+            }
+        }
+    }
+
+        {
+        simulation<double> sim(nParticles);
+        sim.setup_nonVirtualArrays();
+        BENCHMARK("CPU with OMP without polymorphic functions") {
+            for (size_t iteration = 0; iteration < nIterations; ++iteration) {
+                currentTime += dt;
+                integrateTo_withoutPolymorphic_cpu(dt, *sim.types, *sim.masses, *sim.data1, *sim.data2 , sim.store);
 
                 if (iteration % checkpointInterval == 0) {
                     mirror_sync;
